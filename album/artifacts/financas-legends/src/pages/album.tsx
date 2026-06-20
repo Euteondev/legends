@@ -246,97 +246,139 @@ function ChallengeDialog({
 // ── Card detail modal ──────────────────────────────────────────────────────────
 function CardDetailModal({
   card,
-  isUnlocked,
   onClose,
 }: {
   card: Collaborator;
   isUnlocked: boolean;
   onClose: () => void;
 }) {
-  const RARITY_GLOW: Record<string, string> = {
-    comum: "",
-    rara: "shadow-[0_0_15px_rgba(60,181,229,0.4)]",
-    epica: "shadow-[0_0_15px_rgba(168,85,247,0.5)]",
-    lendaria: "shadow-[0_0_25px_rgba(255,215,0,0.6)]",
-  };
+  const [showBack, setShowBack] = useState(false);
 
   return (
     <Dialog open onOpenChange={onClose}>
-      <DialogContent className="max-w-md p-0 overflow-hidden rounded-2xl">
+      <DialogContent className="max-w-sm p-0 overflow-hidden rounded-2xl">
         <DialogTitle className="sr-only">{card.name}</DialogTitle>
-        <div className={`relative bg-card ${RARITY_GLOW[card.rarity]} ${card.isSpecial ? "card-shine" : ""}`}>
-          <div className="relative h-56 bg-muted overflow-hidden">
-            {card.photoUrl ? (
-              <img src={card.photoUrl} alt={card.name} className="w-full h-full object-cover" />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-primary/20 to-primary/40">
-                <Users className="w-20 h-20 text-primary/60" />
-              </div>
-            )}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent" />
-            <div className="absolute bottom-4 left-4 right-4">
-              <Badge className={`mb-2 text-xs font-bold border ${RARITY_BADGE[card.rarity]} border-current`}>
-                {RARITY_LABEL[card.rarity]?.toUpperCase() ?? card.rarity.toUpperCase()}
-                {card.isSpecial && " — ESPECIAL"}
-              </Badge>
-              <h2 className="text-xl font-black text-white drop-shadow-md">{card.name}</h2>
-              <p className="text-white/80 text-sm">{card.role}</p>
-            </div>
-            <div className="absolute top-3 right-3">
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center shadow-lg ${isUnlocked ? "bg-green-500" : "bg-gray-500"}`}>
-                {isUnlocked ? <Unlock className="w-4 h-4 text-white" /> : <Lock className="w-4 h-4 text-white" />}
-              </div>
-            </div>
-          </div>
 
-          <div className="p-5 space-y-3">
-            <div className="grid grid-cols-2 gap-2 text-sm">
-              <div className="bg-muted/60 rounded-lg p-2.5">
-                <p className="text-muted-foreground text-xs mb-0.5">Área</p>
-                <p className="font-semibold">{card.area}</p>
+        <AnimatePresence mode="wait">
+          {!showBack ? (
+            <motion.div
+              key="front"
+              initial={{ opacity: 0, x: 40 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -40 }}
+              transition={{ duration: 0.22 }}
+              className="p-6 flex flex-col items-center gap-4 bg-card"
+            >
+              <div className="w-52">
+                <CollaboratorCard collaborator={card} isUnlocked={true} />
               </div>
-              <div className="bg-muted/60 rounded-lg p-2.5">
-                <p className="text-muted-foreground text-xs mb-0.5">Gerência</p>
-                <p className="font-semibold truncate">{card.management}</p>
+
+              <div className="text-center space-y-1">
+                <h2 className="font-black text-lg text-foreground">{card.name}</h2>
+                <p className="text-muted-foreground text-sm">{card.role}</p>
+                <Badge className={`border-0 ${RARITY_BADGE[card.rarity]}`}>
+                  {card.isSpecial ? "⭐ " : ""}
+                  {RARITY_LABEL[card.rarity] ?? card.rarity}
+                </Badge>
               </div>
-              {card.yearsAtVale != null && (
-                <div className="bg-muted/60 rounded-lg p-2.5">
-                  <p className="text-muted-foreground text-xs mb-0.5 flex items-center gap-1"><Clock className="w-3 h-3" />Tempo de Vale</p>
-                  <p className="font-semibold">{card.yearsAtVale} {card.yearsAtVale === 1 ? "ano" : "anos"}</p>
+
+              <div className="flex gap-2 w-full">
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => setShowBack(true)}
+                >
+                  Ver verso →
+                </Button>
+                <Button variant="ghost" className="flex-1" onClick={onClose}>
+                  Fechar
+                </Button>
+              </div>
+            </motion.div>
+          ) : (
+            <motion.div
+              key="back"
+              initial={{ opacity: 0, x: 40 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -40 }}
+              transition={{ duration: 0.22 }}
+              className="bg-card"
+            >
+              <div className="px-5 pt-5 pb-3 border-b border-border flex items-center justify-between">
+                <div>
+                  <h2 className="font-black text-base">{card.name}</h2>
+                  <p className="text-muted-foreground text-xs">{card.role}</p>
                 </div>
-              )}
-              <div className="bg-muted/60 rounded-lg p-2.5">
-                <p className="text-muted-foreground text-xs mb-0.5 flex items-center gap-1"><Star className="w-3 h-3 text-yellow-500" />Pontos</p>
-                <p className="font-semibold">{card.points} pts</p>
+                <Badge className={`border-0 ${RARITY_BADGE[card.rarity]}`}>
+                  {RARITY_LABEL[card.rarity] ?? card.rarity}
+                </Badge>
               </div>
-            </div>
 
-            {card.superPower && (
-              <div className="bg-primary/10 border border-primary/20 rounded-lg p-3">
-                <p className="text-primary text-xs font-bold mb-0.5 flex items-center gap-1"><Zap className="w-3 h-3" />Super Poder</p>
-                <p className="text-sm">{card.superPower}</p>
-              </div>
-            )}
+              <div className="p-5 space-y-2.5 max-h-[70vh] overflow-y-auto">
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <div className="bg-muted/60 rounded-lg p-2.5">
+                    <p className="text-muted-foreground text-xs mb-0.5">Área</p>
+                    <p className="font-semibold">{card.area}</p>
+                  </div>
+                  <div className="bg-muted/60 rounded-lg p-2.5">
+                    <p className="text-muted-foreground text-xs mb-0.5">Gerência</p>
+                    <p className="font-semibold truncate">{card.management}</p>
+                  </div>
+                  {card.position && (
+                    <div className="bg-muted/60 rounded-lg p-2.5">
+                      <p className="text-muted-foreground text-xs mb-0.5">⚽ Posição</p>
+                      <p className="font-semibold">{card.position}</p>
+                    </div>
+                  )}
+                  {card.yearsAtVale != null && (
+                    <div className="bg-muted/60 rounded-lg p-2.5">
+                      <p className="text-muted-foreground text-xs mb-0.5 flex items-center gap-1"><Clock className="w-3 h-3" />Tempo de Vale</p>
+                      <p className="font-semibold">{card.yearsAtVale} {card.yearsAtVale === 1 ? "ano" : "anos"}</p>
+                    </div>
+                  )}
+                  <div className="bg-muted/60 rounded-lg p-2.5">
+                    <p className="text-muted-foreground text-xs mb-0.5 flex items-center gap-1"><Star className="w-3 h-3 text-yellow-500" />Pontos</p>
+                    <p className="font-semibold">{card.points} pts</p>
+                  </div>
+                  <div className="bg-muted/60 rounded-lg p-2.5">
+                    <p className="text-muted-foreground text-xs mb-0.5">Categoria</p>
+                    <p className="font-semibold truncate">{card.category}</p>
+                  </div>
+                </div>
 
-            {card.curiosity && (
-              <div className="bg-muted/60 rounded-lg p-3">
-                <p className="text-muted-foreground text-xs font-bold mb-0.5">💡 Curiosidade</p>
-                <p className="text-sm">{card.curiosity}</p>
-              </div>
-            )}
-            {card.achievement && (
-              <div className="bg-secondary/10 border border-secondary/20 rounded-lg p-3">
-                <p className="text-secondary text-xs font-bold mb-0.5 flex items-center gap-1"><Award className="w-3 h-3" />Conquista</p>
-                <p className="text-sm">{card.achievement}</p>
-              </div>
-            )}
+                {card.superPower && (
+                  <div className="bg-primary/10 border border-primary/20 rounded-lg p-3">
+                    <p className="text-primary text-xs font-bold mb-0.5 flex items-center gap-1"><Zap className="w-3 h-3" />Super Poder</p>
+                    <p className="text-sm">{card.superPower}</p>
+                  </div>
+                )}
 
-            <div className="flex items-center justify-between pt-2 border-t border-border">
-              <Badge variant="outline" className="text-xs">{card.category}</Badge>
-              <Button variant="ghost" size="sm" onClick={onClose}>Fechar</Button>
-            </div>
-          </div>
-        </div>
+                {card.curiosity && (
+                  <div className="bg-muted/60 rounded-lg p-3">
+                    <p className="text-muted-foreground text-xs font-bold mb-0.5">💡 Curiosidade</p>
+                    <p className="text-sm">{card.curiosity}</p>
+                  </div>
+                )}
+
+                {card.achievement && (
+                  <div className="bg-secondary/10 border border-secondary/20 rounded-lg p-3">
+                    <p className="text-secondary text-xs font-bold mb-0.5 flex items-center gap-1"><Award className="w-3 h-3" />Conquista</p>
+                    <p className="text-sm">{card.achievement}</p>
+                  </div>
+                )}
+
+                <div className="flex gap-2 pt-1">
+                  <Button variant="outline" className="flex-1" onClick={() => setShowBack(false)}>
+                    ← Ver figurinha
+                  </Button>
+                  <Button variant="ghost" className="flex-1" onClick={onClose}>
+                    Fechar
+                  </Button>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </DialogContent>
     </Dialog>
   );
@@ -432,8 +474,15 @@ export default function AlbumPage() {
   const { data: myCards } = useGetMyCards();
   const unlockCard = useUnlockCard();
 
-  const myCardSet = new Set(myCards ?? []);
-  const unlockedCount = myCards?.length ?? 0;
+  const collaboratorIdSet = useMemo(
+    () => new Set((collaborators ?? []).map((c) => c.id)),
+    [collaborators]
+  );
+  const myCardSet = useMemo(
+    () => new Set((myCards ?? []).filter((id) => collaboratorIdSet.has(id))),
+    [myCards, collaboratorIdSet]
+  );
+  const unlockedCount = myCardSet.size;
   const totalCount = collaborators?.length ?? 0;
 
   const categories = useMemo(

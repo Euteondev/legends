@@ -41,7 +41,7 @@ export default function HomePage() {
   const top3 = rankings?.slice(0, 3) ?? [];
   const unlockedCount = myCards?.length ?? 0;
   const totalCards = stats?.total ?? 0;
-  const albumProgress = totalCards > 0 ? Math.round((unlockedCount / totalCards) * 100) : 0;
+  const albumProgress = Math.min(100, totalCards > 0 ? Math.round((unlockedCount / totalCards) * 100) : 0);
 
   return (
     <div className="space-y-8">

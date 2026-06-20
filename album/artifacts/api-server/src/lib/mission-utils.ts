@@ -21,22 +21,19 @@ export async function recalcUser(userId: number) {
   const totalCount = await db.select({ count: count() }).from(collaboratorsTable);
   const total = Number(totalCount[0]?.count ?? 1);
 
+  // JOIN with collaboratorsTable so deleted collaborators are excluded from count
   const unlockedRows = await db
-    .select({ collaboratorId: userCardsTable.collaboratorId })
+    .select({
+      collaboratorId: userCardsTable.collaboratorId,
+      points: collaboratorsTable.points,
+    })
     .from(userCardsTable)
+    .innerJoin(collaboratorsTable, eq(userCardsTable.collaboratorId, collaboratorsTable.id))
     .where(eq(userCardsTable.userId, userId));
 
   const unlocked = unlockedRows.length;
-  const progress = total > 0 ? (unlocked / total) * 100 : 0;
-
-  let points = 0;
-  for (const row of unlockedRows) {
-    const [c] = await db
-      .select({ points: collaboratorsTable.points })
-      .from(collaboratorsTable)
-      .where(eq(collaboratorsTable.id, row.collaboratorId));
-    if (c) points += c.points;
-  }
+  const progress = total > 0 ? Math.min(100, (unlocked / total) * 100) : 0;
+  const points = unlockedRows.reduce((sum, row) => sum + (row.points ?? 0), 0);
 
   const [updated] = await db
     .update(usersTable)

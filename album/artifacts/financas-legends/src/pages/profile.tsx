@@ -339,7 +339,14 @@ export default function ProfilePage() {
 
   const myRanking = rankings?.find((r) => r.userId === authUser?.id);
   const completedMissions = myMissions?.filter((m) => m.completed) ?? [];
-  const unlockedCount = myCards?.length ?? 0;
+  const collaboratorIdSet = useMemo(
+    () => new Set((collaborators ?? []).map((c) => c.id)),
+    [collaborators]
+  );
+  const unlockedCount = useMemo(
+    () => (myCards ?? []).filter((id) => collaboratorIdSet.has(id)).length,
+    [myCards, collaboratorIdSet]
+  );
   const totalMissions = myMissions?.length ?? 0;
   const missionProgress = totalMissions > 0 ? (completedMissions.length / totalMissions) * 100 : 0;
 
@@ -397,7 +404,7 @@ export default function ProfilePage() {
           <div className="flex justify-between text-sm mb-1.5">
             <span className="text-white/80">Progresso do Álbum</span>
             <span className="font-bold">
-              {unlockedCount} cards — {Math.round(user?.progress ?? 0)}%
+              {unlockedCount} cards — {Math.min(100, Math.round(user?.progress ?? 0))}%
             </span>
           </div>
           <div className="w-full bg-white/20 rounded-full h-2">
