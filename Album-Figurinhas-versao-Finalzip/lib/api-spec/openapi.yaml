@@ -1,0 +1,927 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.1.0
+  description: Finanças Empresariais Legends 2026 API
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+  - name: collaborators
+  - name: users
+  - name: missions
+  - name: admin
+  - name: rankings
+  - name: stats
+
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+
+  /collaborators:
+    get:
+      operationId: listCollaborators
+      tags: [collaborators]
+      summary: List all collaborators
+      parameters:
+        - name: category
+          in: query
+          schema:
+            type: string
+        - name: rarity
+          in: query
+          schema:
+            type: string
+        - name: area
+          in: query
+          schema:
+            type: string
+        - name: search
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of collaborators
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Collaborator"
+    post:
+      operationId: createCollaborator
+      tags: [collaborators]
+      summary: Create a new collaborator (admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CollaboratorInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Collaborator"
+
+  /collaborators/{id}:
+    get:
+      operationId: getCollaborator
+      tags: [collaborators]
+      summary: Get a collaborator by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Collaborator found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Collaborator"
+        "404":
+          description: Not found
+    patch:
+      operationId: updateCollaborator
+      tags: [collaborators]
+      summary: Update a collaborator (admin)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CollaboratorUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Collaborator"
+    delete:
+      operationId: deleteCollaborator
+      tags: [collaborators]
+      summary: Delete a collaborator (admin)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /collaborators/featured:
+    get:
+      operationId: getFeaturedCollaborators
+      tags: [collaborators]
+      summary: Get featured collaborators for home page
+      responses:
+        "200":
+          description: Featured collaborators
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Collaborator"
+
+  /users:
+    get:
+      operationId: listUsers
+      tags: [users]
+      summary: List all users (admin)
+      responses:
+        "200":
+          description: List of users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/User"
+
+  /users/me:
+    get:
+      operationId: getMe
+      tags: [users]
+      summary: Get current user profile
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "404":
+          description: Not found
+    patch:
+      operationId: updateMe
+      tags: [users]
+      summary: Update current user profile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  /users/register:
+    post:
+      operationId: registerUser
+      tags: [users]
+      summary: Register or get-or-create user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserRegistration"
+      responses:
+        "200":
+          description: User registered or fetched
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  /users/me/cards:
+    get:
+      operationId: getMyCards
+      tags: [users]
+      summary: Get current user's unlocked card IDs
+      responses:
+        "200":
+          description: Unlocked collaborator IDs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: integer
+
+  /users/me/cards/{collaboratorId}:
+    post:
+      operationId: unlockCard
+      tags: [users]
+      summary: Unlock a card (admin only)
+      parameters:
+        - name: collaboratorId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Card unlocked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  /users/me/cards/{collaboratorId}/challenge:
+    post:
+      operationId: challengeCard
+      tags: [users]
+      summary: Answer a challenge to unlock a collaborator card
+      parameters:
+        - name: collaboratorId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChallengeRequest"
+      responses:
+        "200":
+          description: Challenge result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChallengeResult"
+
+  /users/me/missions:
+    get:
+      operationId: getMyMissions
+      tags: [users]
+      summary: Get current user's mission progress
+      responses:
+        "200":
+          description: Mission progress list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MissionProgress"
+
+  /users/me/missions/{missionId}/start:
+    post:
+      operationId: startMission
+      tags: [users]
+      summary: Start a mission
+      parameters:
+        - name: missionId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Mission started
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MissionProgress"
+
+  /users/me/missions/{missionId}/submit:
+    post:
+      operationId: submitMissionProof
+      tags: [users]
+      summary: Submit evidence proof for a mission
+      parameters:
+        - name: missionId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProofSubmission"
+      responses:
+        "200":
+          description: Proof submitted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MissionProgress"
+
+  /users/me/missions/{missionId}/complete:
+    post:
+      operationId: completeMission
+      tags: [users]
+      summary: Claim reward for a completed mission
+      parameters:
+        - name: missionId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Mission completed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MissionCompletionResult"
+
+  /missions:
+    get:
+      operationId: listMissions
+      tags: [missions]
+      summary: List all missions (admin)
+      responses:
+        "200":
+          description: Mission list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Mission"
+    post:
+      operationId: createMission
+      tags: [missions]
+      summary: Create a mission (admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MissionInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Mission"
+
+  /missions/{id}:
+    patch:
+      operationId: updateMission
+      tags: [missions]
+      summary: Update a mission (admin)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MissionUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Mission"
+    delete:
+      operationId: deleteMission
+      tags: [missions]
+      summary: Delete a mission (admin)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /admin/missions/pending:
+    get:
+      operationId: listPendingMissions
+      tags: [admin]
+      summary: List missions pending admin review
+      responses:
+        "200":
+          description: Pending submissions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PendingMissionReview"
+
+  /admin/missions/{userMissionId}/approve:
+    post:
+      operationId: approveMission
+      tags: [admin]
+      summary: Approve a mission submission
+      parameters:
+        - name: userMissionId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Mission approved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MissionCompletionResult"
+
+  /admin/missions/{userMissionId}/reject:
+    post:
+      operationId: rejectMission
+      tags: [admin]
+      summary: Reject a mission submission
+      parameters:
+        - name: userMissionId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminReject"
+      responses:
+        "200":
+          description: Mission rejected
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MissionProgress"
+
+  /rankings:
+    get:
+      operationId: getRankings
+      tags: [rankings]
+      summary: Get leaderboard sorted by points
+      responses:
+        "200":
+          description: Ranking list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RankingEntry"
+
+  /stats/album:
+    get:
+      operationId: getAlbumStats
+      tags: [stats]
+      summary: Album statistics
+      responses:
+        "200":
+          description: Album stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AlbumStats"
+
+  /activity/recent:
+    get:
+      operationId: getRecentActivity
+      tags: [stats]
+      summary: Recent card unlock activity feed
+      responses:
+        "200":
+          description: Recent activity
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ActivityItem"
+
+components:
+  schemas:
+    HealthStatus:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+
+    Collaborator:
+      type: object
+      required: [id, name, role, area, management, rarity, category, points, isSpecial]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        role:
+          type: string
+        area:
+          type: string
+        management:
+          type: string
+        photoUrl:
+          type: ["string", "null"]
+        yearsAtVale:
+          type: ["integer", "null"]
+        superPower:
+          type: ["string", "null"]
+        curiosity:
+          type: ["string", "null"]
+        achievement:
+          type: ["string", "null"]
+        challengeQuestion:
+          type: ["string", "null"]
+        challengeAnswer:
+          type: ["string", "null"]
+        rarity:
+          type: string
+          enum: [comum, rara, epica, lendaria]
+        category:
+          type: string
+        points:
+          type: integer
+        isSpecial:
+          type: boolean
+
+    CollaboratorInput:
+      type: object
+      required: [name, role, area, management, rarity, category]
+      properties:
+        name:
+          type: string
+        role:
+          type: string
+        area:
+          type: string
+        management:
+          type: string
+        photoUrl:
+          type: ["string", "null"]
+        yearsAtVale:
+          type: ["integer", "null"]
+        superPower:
+          type: ["string", "null"]
+        curiosity:
+          type: ["string", "null"]
+        achievement:
+          type: ["string", "null"]
+        challengeQuestion:
+          type: ["string", "null"]
+        challengeAnswer:
+          type: ["string", "null"]
+        rarity:
+          type: string
+          enum: [comum, rara, epica, lendaria]
+        category:
+          type: string
+        points:
+          type: integer
+        isSpecial:
+          type: boolean
+
+    CollaboratorUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        role:
+          type: string
+        area:
+          type: string
+        management:
+          type: string
+        photoUrl:
+          type: ["string", "null"]
+        yearsAtVale:
+          type: ["integer", "null"]
+        superPower:
+          type: ["string", "null"]
+        curiosity:
+          type: ["string", "null"]
+        achievement:
+          type: ["string", "null"]
+        challengeQuestion:
+          type: ["string", "null"]
+        challengeAnswer:
+          type: ["string", "null"]
+        rarity:
+          type: string
+          enum: [comum, rara, epica, lendaria]
+        category:
+          type: string
+        points:
+          type: integer
+        isSpecial:
+          type: boolean
+
+    ChallengeRequest:
+      type: object
+      required: [answer]
+      properties:
+        answer:
+          type: string
+
+    ChallengeResult:
+      type: object
+      required: [success]
+      properties:
+        success:
+          type: boolean
+        collaborator:
+          $ref: "#/components/schemas/Collaborator"
+        message:
+          type: string
+        hint:
+          type: string
+
+    User:
+      type: object
+      required: [id, name, email, points, progress]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        email:
+          type: string
+        photo:
+          type: ["string", "null"]
+        points:
+          type: integer
+        progress:
+          type: number
+        isAdmin:
+          type: boolean
+        unlockedCount:
+          type: integer
+
+    UserRegistration:
+      type: object
+      required: [name, email]
+      properties:
+        name:
+          type: string
+        email:
+          type: string
+        photo:
+          type: ["string", "null"]
+
+    UserUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        photo:
+          type: ["string", "null"]
+
+    Mission:
+      type: object
+      required: [id, title, description, goal, rewardPoints, missionType, type, status]
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        description:
+          type: string
+        goal:
+          type: integer
+        rewardPoints:
+          type: integer
+        missionType:
+          type: string
+        type:
+          type: string
+          enum: [auto, peer, evidence]
+        requiresApproval:
+          type: boolean
+        status:
+          type: string
+          enum: [open, closed]
+
+    MissionInput:
+      type: object
+      required: [title, description, goal, rewardPoints]
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        goal:
+          type: integer
+        rewardPoints:
+          type: integer
+        missionType:
+          type: string
+        type:
+          type: string
+          enum: [auto, peer, evidence]
+        requiresApproval:
+          type: boolean
+        status:
+          type: string
+          enum: [open, closed]
+
+    MissionUpdate:
+      type: object
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        goal:
+          type: integer
+        rewardPoints:
+          type: integer
+        missionType:
+          type: string
+        type:
+          type: string
+          enum: [auto, peer, evidence]
+        requiresApproval:
+          type: boolean
+        status:
+          type: string
+          enum: [open, closed]
+
+    MissionProgress:
+      type: object
+      required: [missionId, title, description, goal, progress, rewardPoints, completed, started, type, missionType, submissionStatus]
+      properties:
+        missionId:
+          type: integer
+        title:
+          type: string
+        description:
+          type: string
+        goal:
+          type: integer
+        progress:
+          type: integer
+        rewardPoints:
+          type: integer
+        completed:
+          type: boolean
+        started:
+          type: boolean
+        type:
+          type: string
+        missionType:
+          type: string
+        submissionStatus:
+          type: string
+        proofText:
+          type: ["string", "null"]
+        reviewNote:
+          type: ["string", "null"]
+
+    MissionCompletionResult:
+      type: object
+      required: [mission, bonusPoints]
+      properties:
+        mission:
+          $ref: "#/components/schemas/MissionProgress"
+        rewardCard:
+          $ref: "#/components/schemas/Collaborator"
+        bonusPoints:
+          type: integer
+
+    ProofSubmission:
+      type: object
+      required: [proofText]
+      properties:
+        proofText:
+          type: string
+
+    PendingMissionReview:
+      type: object
+      required: [userMissionId, userId, userName, missionId, missionTitle, proofText, submittedAt]
+      properties:
+        userMissionId:
+          type: integer
+        userId:
+          type: integer
+        userName:
+          type: string
+        missionId:
+          type: integer
+        missionTitle:
+          type: string
+        proofText:
+          type: string
+        reviewNote:
+          type: ["string", "null"]
+        submittedAt:
+          type: string
+
+    AdminReject:
+      type: object
+      required: [note]
+      properties:
+        note:
+          type: string
+
+    RankingEntry:
+      type: object
+      required: [userId, name, points, unlockedCount, progress]
+      properties:
+        userId:
+          type: integer
+        name:
+          type: string
+        photo:
+          type: ["string", "null"]
+        points:
+          type: integer
+        unlockedCount:
+          type: integer
+        progress:
+          type: number
+
+    AlbumStats:
+      type: object
+      required: [totalCollaborators, totalUnlocked, completionRate, byCategory, byRarity]
+      properties:
+        totalCollaborators:
+          type: integer
+        totalUnlocked:
+          type: integer
+        completionRate:
+          type: number
+        byCategory:
+          type: array
+          items:
+            $ref: "#/components/schemas/AlbumStatsByCategory"
+        byRarity:
+          type: array
+          items:
+            $ref: "#/components/schemas/AlbumStatsByRarity"
+
+    AlbumStatsByCategory:
+      type: object
+      required: [category, total, unlocked]
+      properties:
+        category:
+          type: string
+        total:
+          type: integer
+        unlocked:
+          type: integer
+
+    AlbumStatsByRarity:
+      type: object
+      required: [rarity, total, unlocked]
+      properties:
+        rarity:
+          type: string
+        total:
+          type: integer
+        unlocked:
+          type: integer
+
+    ActivityItem:
+      type: object
+      required: [userId, userName, collaboratorName, collaboratorRarity, unlockedAt]
+      properties:
+        userId:
+          type: integer
+        userName:
+          type: string
+        collaboratorName:
+          type: string
+        collaboratorRarity:
+          type: string
+        photoUrl:
+          type: ["string", "null"]
+        unlockedAt:
+          type: string
