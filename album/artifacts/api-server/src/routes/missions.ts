@@ -32,6 +32,7 @@ async function getUnlockedCount(userId: number): Promise<number> {
   const [row] = await db
     .select({ count: count() })
     .from(userCardsTable)
+    .innerJoin(collaboratorsTable, eq(userCardsTable.collaboratorId, collaboratorsTable.id))
     .where(eq(userCardsTable.userId, userId));
   return Number(row?.count ?? 0);
 }

@@ -1,4 +1,5 @@
 import { motion } from "framer-motion";
+import { useMemo } from "react";
 import { Link } from "wouter";
 import {
   useGetFeaturedCollaborators,
@@ -6,6 +7,7 @@ import {
   useGetRecentActivity,
   useGetAlbumStats,
   useGetMyCards,
+  useListCollaborators,
 } from "@/hooks/use-db";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
@@ -38,10 +40,19 @@ export default function HomePage() {
   const { data: stats, isLoading: statsLoading } = useGetAlbumStats();
   const { data: myCards } = useGetMyCards();
 
+  const { data: collaborators } = useListCollaborators();
+  const collaboratorIdSet = useMemo(
+    () => new Set((collaborators ?? []).map((c) => c.id)),
+    [collaborators]
+  );
+  const validUnlockedCount = useMemo(
+    () => (myCards ?? []).filter((id) => collaboratorIdSet.has(id)).length,
+    [myCards, collaboratorIdSet]
+  );
+
   const top3 = rankings?.slice(0, 3) ?? [];
-  const unlockedCount = myCards?.length ?? 0;
-  const totalCards = stats?.total ?? 0;
-  const albumProgress = Math.min(100, totalCards > 0 ? Math.round((unlockedCount / totalCards) * 100) : 0);
+  const totalCards = collaborators?.length ?? stats?.total ?? 0;
+  const albumProgress = Math.min(100, totalCards > 0 ? Math.round((validUnlockedCount / totalCards) * 100) : 0);
 
   return (
     <div className="space-y-8">

@@ -863,23 +863,31 @@ function MissionsTab() {
                   >
                     {updateMission.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> :
                       isOpen ? <PowerOff className="w-3 h-3" /> : <Power className="w-3 h-3" />}
-                    {isOpen ? "Encerrar Missão" : "Reabrir Missão"}
+                    {isOpen ? "Encerrar" : "Reabrir"}
                   </Button>
-                  <Button
-                    variant="ghost" size="icon"
-                    className="text-muted-foreground hover:text-foreground h-8 w-8"
-                    onClick={() => openEdit(m)}
-                    data-testid={`button-edit-mission-${m.id}`}
-                  >
-                    <Edit2 className="w-3.5 h-3.5" />
-                  </Button>
-                  <Button
-                    variant="ghost" size="icon"
-                    className="text-destructive hover:text-destructive h-8 w-8"
-                    onClick={() => handleDelete(m.id, m.title)}
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </Button>
+                  {m.missionType !== "album_percent" && (
+                    <Button
+                      variant="ghost" size="icon"
+                      className="text-muted-foreground hover:text-foreground h-8 w-8"
+                      onClick={() => openEdit(m)}
+                      data-testid={`button-edit-mission-${m.id}`}
+                    >
+                      <Edit2 className="w-3.5 h-3.5" />
+                    </Button>
+                  )}
+                  {m.missionType !== "album_percent" ? (
+                    <Button
+                      variant="ghost" size="icon"
+                      className="text-destructive hover:text-destructive h-8 w-8"
+                      onClick={() => handleDelete(m.id, m.title)}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
+                  ) : (
+                    <div className="h-8 w-8 flex items-center justify-center" title="Missão permanente — não pode ser excluída">
+                      <Lock className="w-3.5 h-3.5 text-muted-foreground/50" />
+                    </div>
+                  )}
                 </div>
               </motion.div>
             );

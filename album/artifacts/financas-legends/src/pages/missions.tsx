@@ -6,6 +6,7 @@ import {
   useStartMission,
   useSubmitMissionProof,
   useListCollaborators,
+  useGetMyCards,
   getGetMyMissionsQueryKey,
   getGetMyCardsQueryKey,
   getGetAlbumStatsQueryKey,
@@ -497,10 +498,31 @@ export default function MissionsPage() {
 
   const { user: authUser } = useAuth();
   const { data: collaborators } = useListCollaborators();
+  const { data: myCards } = useGetMyCards();
   const myCollaborator = useMemo(
     () => collaborators?.find((c) => c.email?.toLowerCase() === authUser?.email?.toLowerCase()) ?? null,
     [collaborators, authUser?.email]
   );
+
+  // Compute album progress locally (same formula as album & profile pages)
+  const collaboratorIdSet = useMemo(
+    () => new Set((collaborators ?? []).map((c) => c.id)),
+    [collaborators]
+  );
+  const validUnlockedCount = useMemo(
+    () => (myCards ?? []).filter((id) => collaboratorIdSet.has(id)).length,
+    [myCards, collaboratorIdSet]
+  );
+  const totalCollaborators = collaborators?.length ?? 0;
+  const albumProgressPct = Math.min(
+    100,
+    totalCollaborators > 0 ? Math.round((validUnlockedCount / totalCollaborators) * 100) : 0
+  );
+  // Effective rarity based on real current progress
+  const effectiveRarity =
+    albumProgressPct >= 100 ? "lendaria" :
+    albumProgressPct >= 75  ? "epica"    :
+    albumProgressPct >= 50  ? "rara"     : null;
 
   const [reward, setReward] = useState<{ card: Collaborator | null; bonusPoints: number } | null>(null);
   const [proofMissionId, setProofMissionId] = useState<string | null>(null);
@@ -598,23 +620,23 @@ export default function MissionsPage() {
         ))}
       </div>
 
-      {/* Rarity progression banner */}
-      {myCollaborator && myCollaborator.rarity !== "comum" && RARITY_BANNER[myCollaborator.rarity] && (
+      {/* Rarity progression banner — based on real current album progress */}
+      {myCollaborator && effectiveRarity && RARITY_BANNER[effectiveRarity] && (
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
-          className={`bg-gradient-to-r ${RARITY_BANNER[myCollaborator.rarity]!.gradient} rounded-xl p-4 flex items-center gap-4`}
+          className={`bg-gradient-to-r ${RARITY_BANNER[effectiveRarity]!.gradient} rounded-xl p-4 flex items-center gap-4`}
         >
-          <span className="text-4xl">{RARITY_BANNER[myCollaborator.rarity]!.emoji}</span>
+          <span className="text-4xl">{RARITY_BANNER[effectiveRarity]!.emoji}</span>
           <div>
             <h3 className="font-black text-white text-sm">
               🎉 Parabéns, {myCollaborator.name.split(" ")[0]}!
             </h3>
             <p className="text-white/90 text-xs mt-0.5">
-              Sua figurinha evoluiu para <strong>{RARITY_BANNER[myCollaborator.rarity]!.label}!</strong>
+              Sua figurinha é <strong>{RARITY_BANNER[effectiveRarity]!.label}</strong> — {albumProgressPct}% do álbum
             </p>
             <p className="text-white/70 text-[11px] mt-0.5">
-              {RARITY_BANNER[myCollaborator.rarity]!.text}
+              {RARITY_BANNER[effectiveRarity]!.text}
             </p>
           </div>
         </motion.div>

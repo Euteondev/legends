@@ -199,7 +199,9 @@ function SelfStickerSection({ userEmail }: { userEmail: string }) {
               <h3 className="font-bold text-foreground truncate">{myCollaborator.name}</h3>
               <p className="text-sm text-muted-foreground truncate">{myCollaborator.role}</p>
               <Badge className="mt-1.5 text-[10px] capitalize" variant="secondary">
-                {myCollaborator.rarity === "lendaria" ? "Lendária" : myCollaborator.rarity.charAt(0).toUpperCase() + myCollaborator.rarity.slice(1)}
+                {displayRarity === "lendaria" ? "🟡 Lendária" :
+                 displayRarity === "epica"    ? "🟣 Épica"    :
+                 displayRarity === "rara"     ? "🔵 Rara"     : "⚪ Comum"}
               </Badge>
             </div>
             <Button size="sm" variant="outline" onClick={openForm} className="flex-shrink-0">
@@ -352,6 +354,11 @@ export default function ProfilePage() {
     100,
     totalCount > 0 ? Math.round((unlockedCount / totalCount) * 100) : 0
   );
+  // Rarity displayed on profile follows current album progress
+  const displayRarity =
+    progressPercent >= 100 ? "lendaria" :
+    progressPercent >= 75  ? "epica"    :
+    progressPercent >= 50  ? "rara"     : "comum";
   const totalMissions = myMissions?.length ?? 0;
   const missionProgress = totalMissions > 0 ? (completedMissions.length / totalMissions) * 100 : 0;
 
@@ -439,9 +446,9 @@ export default function ProfilePage() {
                 {myCollaborator.position ?? myCollaborator.role}
               </p>
               <Badge variant="secondary" className="capitalize">
-                {myCollaborator.rarity === "lendaria" ? "🟡 Lendária" :
-                 myCollaborator.rarity === "epica"    ? "🟣 Épica" :
-                 myCollaborator.rarity === "rara"     ? "🔵 Rara" : "⚪ Comum"}
+                {displayRarity === "lendaria" ? "🟡 Lendária" :
+                 displayRarity === "epica"    ? "🟣 Épica"    :
+                 displayRarity === "rara"     ? "🔵 Rara"     : "⚪ Comum"}
               </Badge>
             </div>
           </DialogContent>
