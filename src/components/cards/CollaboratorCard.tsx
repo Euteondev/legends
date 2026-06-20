@@ -3,11 +3,11 @@ import { type Collaborator } from "@/lib/types";
 import { Lock, User as UserIcon } from "lucide-react";
 
 /* 🎨 Fundos */
-const CARD_BACKGROUNDS: Record<string, string> = {
-  comum: "/card-comum.jpeg",
-  rara: "/card-rara.jpeg",
-  epica: "/card-epica.jpeg",
-  lendaria: "/card-lenda.jpeg",
+const CARD_BACKGROUNDS = {
+  comum: `${import.meta.env.BASE_URL}card-comum.jpeg`,
+  rara: `${import.meta.env.BASE_URL}card-rara.jpeg`,
+  epica: `${import.meta.env.BASE_URL}card-epica.jpeg`,
+  lendaria: `${import.meta.env.BASE_URL}card-lenda.jpeg`,
 };
 
 /* 🌈 Glow */
