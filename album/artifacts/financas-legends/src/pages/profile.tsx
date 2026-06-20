@@ -347,6 +347,11 @@ export default function ProfilePage() {
     () => (myCards ?? []).filter((id) => collaboratorIdSet.has(id)).length,
     [myCards, collaboratorIdSet]
   );
+  const totalCount = collaborators?.length ?? 0;
+  const progressPercent = Math.min(
+    100,
+    totalCount > 0 ? Math.round((unlockedCount / totalCount) * 100) : 0
+  );
   const totalMissions = myMissions?.length ?? 0;
   const missionProgress = totalMissions > 0 ? (completedMissions.length / totalMissions) * 100 : 0;
 
@@ -404,14 +409,14 @@ export default function ProfilePage() {
           <div className="flex justify-between text-sm mb-1.5">
             <span className="text-white/80">Progresso do Álbum</span>
             <span className="font-bold">
-              {unlockedCount} cards — {Math.min(100, Math.round(user?.progress ?? 0))}%
+              {unlockedCount} de {totalCount} — {progressPercent}%
             </span>
           </div>
           <div className="w-full bg-white/20 rounded-full h-2">
             <motion.div
               className="bg-white rounded-full h-2"
               initial={{ width: 0 }}
-              animate={{ width: `${Math.min(user?.progress ?? 0, 100)}%` }}
+              animate={{ width: `${progressPercent}%` }}
               transition={{ duration: 1, ease: "easeOut" }}
             />
           </div>
