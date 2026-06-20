@@ -16,7 +16,10 @@ const basePath = process.env.BASE_PATH;
 if (!isBuild && !basePath) {
   throw new Error("BASE_PATH environment variable is required but was not provided.");
 }
-const resolvedBase = basePath ?? "/";
+const resolvedBase =
+  process.env.NODE_ENV === "production"
+    ? "/legends/"  // 👈 NOME DO SEU REPO
+    : basePath ?? "/";
 
 export default defineConfig({
   base: resolvedBase,
