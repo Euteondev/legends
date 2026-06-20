@@ -1,6 +1,5 @@
 import app from "./app";
 import { logger } from "./lib/logger";
-import { seedAlbumPercentMissions } from "./lib/mission-utils";
 
 const rawPort = process.env["PORT"];
 
@@ -23,9 +22,4 @@ app.listen(port, (err) => {
   }
 
   logger.info({ port }, "Server listening");
-
-  // Seed album percent milestone missions on startup
-  seedAlbumPercentMissions().catch((e) => {
-    logger.warn({ err: e }, "Failed to seed album percent missions");
-  });
 });

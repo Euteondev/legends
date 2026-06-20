@@ -99,7 +99,7 @@ const SELF_DEFAULTS: SelfForm = {
 };
 
 // ─── Self-service sticker section ─────────────────────────────────────────────
-function SelfStickerSection({ userEmail }: { userEmail: string }) {
+function SelfStickerSection({ userEmail, displayRarity }: { userEmail: string; displayRarity: string }) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { data: collaborators } = useListCollaborators();
@@ -457,7 +457,7 @@ export default function ProfilePage() {
 
       {/* Self-service sticker section */}
       {authUser?.email && (
-        <SelfStickerSection userEmail={authUser.email} />
+        <SelfStickerSection userEmail={authUser.email} displayRarity={displayRarity} />
       )}
 
       {/* Stats grid */}

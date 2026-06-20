@@ -723,8 +723,38 @@ function MissionsTab() {
 
   const [createOpen, setCreateOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<Mission | null>(null);
+  const [seedingDefaults, setSeedingDefaults] = useState(false);
 
   const defaultValues: MissionForm = { title: "", description: "", goal: 1, rewardPoints: 50, missionType: "unlock_cards", type: "auto", requiresApproval: false };
+
+  const DEFAULT_ALBUM_MISSIONS = [
+    { title: "Quase Lá", description: "Complete 80% do álbum para ganhar uma figurinha especial!", goal: 80, rewardPoints: 200, missionType: "album_percent", type: "auto" as const, requiresApproval: false, status: "open" as const },
+    { title: "Mestre do Álbum", description: "Complete 100% do álbum e se torne um verdadeiro Legends!", goal: 100, rewardPoints: 500, missionType: "album_percent", type: "auto" as const, requiresApproval: false, status: "open" as const },
+  ];
+
+  const handleSeedDefaultMissions = async () => {
+    const existingGoals = new Set(
+      (missions ?? []).filter((m) => m.missionType === "album_percent").map((m) => m.goal)
+    );
+    const toCreate = DEFAULT_ALBUM_MISSIONS.filter((m) => !existingGoals.has(m.goal));
+    if (toCreate.length === 0) {
+      toast({ title: "Missões de progresso já existem!" });
+      return;
+    }
+    setSeedingDefaults(true);
+    try {
+      for (const m of toCreate) {
+        await createMission.mutateAsync({ data: m });
+      }
+      queryClient.invalidateQueries({ queryKey: getListMissionsQueryKey() });
+      toast({ title: `✅ ${toCreate.length} missão(ões) de progresso criada(s)!` });
+    } catch {
+      toast({ title: "Erro ao criar missões padrão", variant: "destructive" });
+    } finally {
+      setSeedingDefaults(false);
+    }
+  };
+
   const createForm = useForm<MissionForm>({ resolver: zodResolver(missionSchema), defaultValues });
   const editForm = useForm<MissionForm>({ resolver: zodResolver(missionSchema), defaultValues });
 
@@ -805,7 +835,18 @@ function MissionsTab() {
             {closedMissions.length} encerradas
           </span>
         </div>
-        <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={handleSeedDefaultMissions}
+            disabled={seedingDefaults || isLoading}
+            title="Cria automaticamente as missões de progresso do álbum (80% e 100%)"
+          >
+            {seedingDefaults ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <span className="mr-1">📊</span>}
+            Missões padrão
+          </Button>
+          <Dialog open={createOpen} onOpenChange={setCreateOpen}>
           <DialogTrigger asChild>
             <Button size="sm" data-testid="button-new-mission">
               <Plus className="w-4 h-4 mr-1" /> Nova Missão
@@ -816,6 +857,7 @@ function MissionsTab() {
             <MissionFormFields form={createForm} onSubmit={handleCreate} isPending={createMission.isPending} submitLabel="Criar Missão" />
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       {isLoading ? (
