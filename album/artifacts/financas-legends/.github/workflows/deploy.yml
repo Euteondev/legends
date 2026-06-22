@@ -1,38 +1,47 @@
-# force deploy2
-
-name: Deploy to GitHub Pages
+name: Deploy Vite App
 
 on:
   push:
     branches:
       - main
+  workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
+  pages: write
+  id-token: write
 
 jobs:
-  build-deploy:
+  build:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Clonar repositório
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Instalar Node
+      - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 18
 
-      - name: Instalar dependências
+      - name: Install dependencies
         run: npm install
 
-      - name: Build do projeto
+      - name: Build project
         run: npm run build
 
-      - name: Criar fallback SPA (404.html)
+      - name: SPA fallback
         run: cp dist/index.html dist/404.html
 
-      - name: Deploy para GitHub Pages
-        uses: JamesIves/github-pages-deploy-action@v4
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
         with:
-          folder: dist
+          path: ./dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy to GitHub Pages
+        uses: actions/deploy-pages@v4
