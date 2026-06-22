@@ -1,1 +1,2 @@
 - [Arquitetura Firebase vs PostgreSQL](arch-firebase-postgres.md) — frontend usa Firestore para TODOS os dados; Express API + PostgreSQL é camada separada usada apenas por algumas rotas backend.
+- [Estrutura pnpm workspace](pnpm-workspace-structure.md) — Replit roda de album/, pacote @workspace/financas-legends em album/artifacts/, workspace precisa de "- artifacts" nas packages

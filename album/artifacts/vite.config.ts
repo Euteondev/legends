@@ -18,20 +18,20 @@ if (!isBuild && !basePath) {
 }
 const resolvedBase =
   process.env.NODE_ENV === "production"
-    ? "/legends/"  // 👈 NOME DO SEU REPO
+    ? "/legends/"
     : basePath ?? "/";
 
 export default defineConfig({
   base: resolvedBase,
   define: {
     "import.meta.env.VITE_FIREBASE_API_KEY": JSON.stringify(
-      process.env.GOOGLE_API_KEY ?? ""
+      process.env.VITE_FIREBASE_API_KEY ?? process.env.GOOGLE_API_KEY ?? ""
     ),
   },
   plugins: [
     react(),
     tailwindcss(),
-    runtimeErrorOverlay(),
+    ...(!isBuild ? [runtimeErrorOverlay()] : []),
     ...(process.env.NODE_ENV !== "production" &&
     process.env.REPL_ID !== undefined
       ? [
@@ -55,7 +55,7 @@ export default defineConfig({
   },
   root: path.resolve(import.meta.dirname),
   build: {
-    outDir: path.resolve(import.meta.dirname, "dist"),
+    outDir: path.resolve(import.meta.dirname, "financas-legends", "dist", "public"),
     emptyOutDir: true,
   },
   server: {
