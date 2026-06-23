@@ -61,7 +61,7 @@ const collaboratorSchema = z.object({
   rarity: z.enum(["comum", "rara", "epica", "lendaria"]),
   category: z.string().min(1),
   points: z.coerce.number().min(0).default(10),
-  keyBehavior: z.enum(behaviorOptions).optional(),
+  keyBehavior: z.enum(behaviorOptions).nullable().optional(),
   superPower: z.string().optional(),
   curiosity: z.string().optional(),
   achievement: z.string().optional(),
@@ -653,7 +653,7 @@ function CollaboratorFormFields({
           render={({ field }) => (
             <FormItem>
               <FormLabel>🎯 Comportamento Chave</FormLabel>
-              <Select onValueChange={field.onChange} value={field.value ?? ""}>
+              <Select onValueChange={field.onChange} value={field.value || undefined}>
                 <FormControl>
                   <SelectTrigger>
                     <SelectValue placeholder="Selecionar comportamento..." />
