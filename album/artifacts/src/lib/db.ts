@@ -47,6 +47,7 @@ function toUser(id: string, data: DocumentData): User {
 }
 
 function toCollaborator(id: string, data: DocumentData): Collaborator {
+   const validBehaviors = new Set(behaviorOptions);
   return {
     id,
     name: data.name ?? "",
@@ -57,7 +58,9 @@ function toCollaborator(id: string, data: DocumentData): Collaborator {
     position: data.position ?? null,
     photoUrl: data.photoUrl ?? null,
     yearsAtVale: data.yearsAtVale ?? null,
-    keyBehavior: data.keyBehavior ?? null,
+    keyBehavior: validBehaviors.has(data.keyBehavior)
+      ? data.keyBehavior
+      : null,
     superPower: data.superPower ?? null,
     curiosity: data.curiosity ?? null,
     achievement: data.achievement ?? null,
