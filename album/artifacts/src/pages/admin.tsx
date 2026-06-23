@@ -44,6 +44,15 @@ import {
 } from "lucide-react";
 import { Link } from "wouter";
 
+const behaviorOptions = [
+  "Diálogo Aberto e Transparente",
+  "Empoderamento com Comprometimento",
+  "Sentimento de Dono",
+  "Obsessão por Segurança e Gestão de Risco",
+  "Escuta Ativa e Engajamento com a Sociedade",
+] as const;
+
+
 const RARITY_COLORS: Record<string, string> = {
   comum: "bg-gray-100 text-gray-700",
   rara: "bg-blue-100 text-blue-700",
