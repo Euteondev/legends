@@ -144,14 +144,7 @@ export function CollaboratorCard({
               {displayLabel}
             </p>
           )}
-          {collaborator.keyBehavior && (
-            <p
-              className="text-[7px] truncate font-medium"
-              style={{ color: "rgba(255,255,255,0.8)" }}
-            >
-              ⚽ {collaborator.keyBehavior}
-            </p>
-          )}
+
         </div>
       </div>
     </motion.div>

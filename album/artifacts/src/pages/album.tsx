@@ -366,6 +366,16 @@ function CardDetailModal({
                     <p className="text-sm">{card.achievement}</p>
                   </div>
                 )}
+                {previewTarget.keyBehavior && (
+                  <div className="bg-primary/10 rounded-lg p-3 mt-3">
+                    <p className="text-[10px] text-primary font-bold mb-1">
+                      🎯 Comportamento Chave
+                    </p>
+                    <p className="text-foreground text-sm">
+                      {previewTarget.keyBehavior}
+                    </p>
+                  </div>
+                )}
 
                 <div className="flex gap-2 pt-1">
                   <Button variant="outline" className="flex-1" onClick={() => setShowBack(false)}>
