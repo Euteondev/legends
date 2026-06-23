@@ -61,6 +61,7 @@ const collaboratorSchema = z.object({
   rarity: z.enum(["comum", "rara", "epica", "lendaria"]),
   category: z.string().min(1),
   points: z.coerce.number().min(0).default(10),
+  keyBehavior: z.enum(behaviorOptions).optional(),
   superPower: z.string().optional(),
   curiosity: z.string().optional(),
   achievement: z.string().optional(),
@@ -183,7 +184,7 @@ function CollaboratorsTab() {
   const firstCategory = allCategories[0] ?? "";
   const defaultValues: CollaboratorForm = {
     name: "", role: "", area: "", management: "", email: "", position: "",
-    rarity: "comum", category: firstCategory, points: 10, isSpecial: false,
+    rarity: "comum", category: firstCategory, points: 10, isSpecial: false, keyBehavior: undefined,
     superPower: "", curiosity: "", achievement: "",
     challengeQuestion: "", challengeAnswer: "", photoUrl: "",
     yearsAtVale: undefined,
@@ -249,6 +250,7 @@ function CollaboratorsTab() {
       category: c.category,
       points: c.points,
       isSpecial: c.isSpecial,
+      keyBehavior: c.keyBehavior ?? undefined,
       superPower: c.superPower ?? "",
       curiosity: c.curiosity ?? "",
       achievement: c.achievement ?? "",
@@ -645,7 +647,30 @@ function CollaboratorFormFields({
             <FormItem><FormLabel>Anos na Vale</FormLabel><FormControl><Input type="number" {...field} /></FormControl></FormItem>
           )} />
         </div>
+        <FormField
+          control={form.control}
+          name="keyBehavior"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>🎯 Comportamento Chave</FormLabel>
+              <Select onValueChange={field.onChange} value={field.value ?? ""}>
+                <FormControl>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecionar comportamento..." />
+                  </SelectTrigger>
+                </FormControl>
 
+                <SelectContent>
+                  {behaviorOptions.map((option) => (
+                    <SelectItem key={option} value={option}>
+                      {option}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </FormItem>
+          )}
+        />
         <FormField control={form.control} name="photoUrl" render={({ field }) => (
           <FormItem>
             <FormLabel>📷 Foto</FormLabel>

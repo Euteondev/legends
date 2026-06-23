@@ -57,6 +57,7 @@ function toCollaborator(id: string, data: DocumentData): Collaborator {
     position: data.position ?? null,
     photoUrl: data.photoUrl ?? null,
     yearsAtVale: data.yearsAtVale ?? null,
+    keyBehavior: data.keyBehavior ?? null,
     superPower: data.superPower ?? null,
     curiosity: data.curiosity ?? null,
     achievement: data.achievement ?? null,
