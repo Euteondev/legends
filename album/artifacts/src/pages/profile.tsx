@@ -41,16 +41,7 @@ import {
   Loader2,
   Sparkles,
 } from "lucide-react";
-
-
-export const behaviorOptions = [
-  "Diálogo Aberto e Transparente",
-  "Empoderamento com Comprometimento",
-  "Sentimento de Dono",
-  "Obsessão por Segurança e Gestão de Risco",
-  "Escuta Ativa e Engajamento com a Sociedade",
-] as const;
-
+import { behaviorOptions } from "@/lib/constants";
 
 // ─── Photo picker component (avoids useRef inside render prop) ────────────────
 function PhotoPickerField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
@@ -131,16 +122,6 @@ function SelfStickerSection({ userEmail, displayRarity }: { userEmail: string; d
   const challengeQuestion = useWatch({ control: form.control, name: "challengeQuestion" });
 
 
-  const behaviorOptions = [
-    "Diálogo Aberto e Transparente",
-    "Empoderamento com Comprometimento",
-    "Sentimento de Dono",
-    "Obsessão por Segurança e Gestão de Risco",
-    "Escuta Ativa e Engajamento com a Sociedade",
-  ] as const;
-
-
-  
   const openForm = () => {
     if (myCollaborator) {
       form.reset({

@@ -43,14 +43,7 @@ import {
   CheckCircle2, XCircle, FileText, RefreshCw, Tags, PenLine
 } from "lucide-react";
 import { Link } from "wouter";
-
-const behaviorOptions = [
-  "Diálogo Aberto e Transparente",
-  "Empoderamento com Comprometimento",
-  "Sentimento de Dono",
-  "Obsessão por Segurança e Gestão de Risco",
-  "Escuta Ativa e Engajamento com a Sociedade",
-] as const;
+import { behaviorOptions } from "@/lib/constants";
 
 
 const RARITY_COLORS: Record<string, string> = {
