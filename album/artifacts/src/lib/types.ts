@@ -20,6 +20,7 @@ export interface Collaborator {
   email: string | null;
   photoUrl: string | null;
   yearsAtVale: number | null;
+  keyBehavior?: string | null;
   superPower: string | null;
   curiosity: string | null;
   achievement: string | null;

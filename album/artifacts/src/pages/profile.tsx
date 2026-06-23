@@ -42,6 +42,16 @@ import {
   Sparkles,
 } from "lucide-react";
 
+
+export const behaviorOptions = [
+  "Diálogo Aberto e Transparente",
+  "Empoderamento com Comprometimento",
+  "Sentimento de Dono",
+  "Obsessão por Segurança e Gestão de Risco",
+  "Escuta Ativa e Engajamento com a Sociedade",
+] as const;
+
+
 // ─── Photo picker component (avoids useRef inside render prop) ────────────────
 function PhotoPickerField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const fileRef = useRef<HTMLInputElement>(null);
@@ -82,6 +92,7 @@ const selfSchema = z.object({
   management: z.string().min(1, "Gerência obrigatória"),
   photoUrl: z.string().optional(),
   yearsAtVale: z.coerce.number().optional(),
+  keyBehavior: z.enum(behaviorOptions).optional(),
   superPower: z.string().optional(),
   curiosity: z.string().optional(),
   achievement: z.string().optional(),
@@ -93,7 +104,7 @@ type SelfForm = z.infer<typeof selfSchema>;
 
 const SELF_DEFAULTS: SelfForm = {
   name: "", role: "", area: "", management: "",
-  photoUrl: "", yearsAtVale: undefined,
+  photoUrl: "", yearsAtVale: undefined, keyBehavior: undefined,
   superPower: "", curiosity: "", achievement: "",
   challengeQuestion: "", challengeAnswer: "", position: "",
 };
@@ -119,6 +130,17 @@ function SelfStickerSection({ userEmail, displayRarity }: { userEmail: string; d
 
   const challengeQuestion = useWatch({ control: form.control, name: "challengeQuestion" });
 
+
+  const behaviorOptions = [
+    "Diálogo Aberto e Transparente",
+    "Empoderamento com Comprometimento",
+    "Sentimento de Dono",
+    "Obsessão por Segurança e Gestão de Risco",
+    "Escuta Ativa e Engajamento com a Sociedade",
+  ] as const;
+
+
+  
   const openForm = () => {
     if (myCollaborator) {
       form.reset({
@@ -128,6 +150,7 @@ function SelfStickerSection({ userEmail, displayRarity }: { userEmail: string; d
         management: myCollaborator.management,
         photoUrl: myCollaborator.photoUrl ?? "",
         yearsAtVale: myCollaborator.yearsAtVale ?? undefined,
+        keyBehavior: myCollaborator.keyBehavior ?? undefined,
         superPower: myCollaborator.superPower ?? "",
         curiosity: myCollaborator.curiosity ?? "",
         achievement: myCollaborator.achievement ?? "",
@@ -150,6 +173,7 @@ function SelfStickerSection({ userEmail, displayRarity }: { userEmail: string; d
       email: userEmail,
       photoUrl: data.photoUrl || null,
       yearsAtVale: data.yearsAtVale ?? null,
+      keyBehavior: data.keyBehavior ?? null,
       superPower: data.superPower || null,
       curiosity: data.curiosity || null,
       achievement: data.achievement || null,
@@ -267,6 +291,33 @@ function SelfStickerSection({ userEmail, displayRarity }: { userEmail: string; d
                 <FormField control={form.control} name="yearsAtVale" render={({ field }) => (
                   <FormItem><FormLabel>Anos na Vale</FormLabel><FormControl><Input type="number" {...field} /></FormControl></FormItem>
                 )} />
+                <FormField
+                  control={form.control}
+                  name="keyBehavior"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>🎯 Comportamento Chave</FormLabel>
+                      <Select
+                        onValueChange={field.onChange}
+                        value={field.value ?? ""}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecionar comportamento..." />
+                          </SelectTrigger>
+                        </FormControl>
+
+                        <SelectContent>
+                          {behaviorOptions.map((option) => (
+                            <SelectItem key={option} value={option}>
+                              {option}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </FormItem>
+                  )}
+                />
                 <FormField control={form.control} name="photoUrl" render={({ field }) => (
                   <FormItem className="col-span-2">
                     <FormLabel>📷 Foto</FormLabel>
