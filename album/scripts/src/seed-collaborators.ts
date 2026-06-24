@@ -362,7 +362,7 @@ const collaborators = [
   },
   // ── Figurinhas Especiais ───────────────────────────────────────────────────
   {
-    name: "Troféu Quase Lá",
+    name: "Troféu Mestre do Álbum",
     role: "Conquista Especial",
     area: "Álbum",
     management: "Conquistas",
@@ -375,7 +375,7 @@ const collaborators = [
     curiosity: "Figurinha exclusiva para quem chegou perto do topo",
   },
   {
-    name: "Troféu Mestre do Álbum",
+    name: "Troféu Campeão dos Legends",
     role: "Conquista Máxima",
     area: "Álbum",
     management: "Conquistas",

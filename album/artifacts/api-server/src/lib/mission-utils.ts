@@ -312,7 +312,7 @@ export async function seedAlbumPercentMissions(): Promise<void> {
 
   if (!existingGoals.has(80)) {
     toCreate.push({
-      title: "Quase Lá",
+      title: "Rumo à Final",
       description: "Complete 80% do álbum para ganhar uma figurinha especial!",
       goal: 80,
       rewardPoints: 200,
@@ -321,7 +321,7 @@ export async function seedAlbumPercentMissions(): Promise<void> {
 
   if (!existingGoals.has(100)) {
     toCreate.push({
-      title: "Mestre do Álbum",
+      title: "Campeão dos Legends",
       description: "Complete 100% do álbum e se torne um verdadeiro Legends!",
       goal: 100,
       rewardPoints: 500,
