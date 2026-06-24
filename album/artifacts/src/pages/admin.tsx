@@ -755,8 +755,8 @@ function MissionsTab() {
   const defaultValues: MissionForm = { title: "", description: "", goal: 1, rewardPoints: 50, missionType: "unlock_cards", type: "auto", requiresApproval: false };
 
   const DEFAULT_ALBUM_MISSIONS = [
-    { title: "Quase Lá", description: "Complete 80% do álbum para ganhar uma figurinha especial!", goal: 80, rewardPoints: 200, missionType: "album_percent", type: "auto" as const, requiresApproval: false, status: "open" as const },
-    { title: "Mestre do Álbum", description: "Complete 100% do álbum e se torne um verdadeiro Legends!", goal: 100, rewardPoints: 500, missionType: "album_percent", type: "auto" as const, requiresApproval: false, status: "open" as const },
+    { title: "Rumo à Final", description: "Complete 80% do álbum para ganhar uma figurinha especial!", goal: 80, rewardPoints: 200, missionType: "album_percent", type: "auto" as const, requiresApproval: false, status: "open" as const },
+    { title: "Campeão dos Legends", description: "Complete 100% do álbum e se torne um verdadeiro Legends!", goal: 100, rewardPoints: 500, missionType: "album_percent", type: "auto" as const, requiresApproval: false, status: "open" as const },
   ];
 
   const handleSeedDefaultMissions = async () => {
