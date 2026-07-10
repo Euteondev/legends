@@ -342,17 +342,28 @@ function DonateDialog({
 }
 
 // ── Card detail modal ──────────────────────────────────────────────────────────
+const SOURCE_LABEL: Record<string, string> = {
+  peer_gift: "Presente de colega",
+  challenge_reward: "Recompensa de desafio",
+  duplicate_donation: "Doação de repetida",
+  mission: "Conquista de missão",
+  store: "Loja",
+  admin_grant: "Concedido pelo admin",
+};
+
 function CardDetailModal({
   card,
   onClose,
   duplicateCount,
   giftedByName,
+  unlockedBy,
 }: {
   card: Collaborator;
   isUnlocked: boolean;
   onClose: () => void;
   duplicateCount?: number;
   giftedByName?: string | null;
+  unlockedBy?: string | null;
 }) {
   const [showBack, setShowBack] = useState(false);
   const [showDonate, setShowDonate] = useState(false);
@@ -433,12 +444,15 @@ function CardDetailModal({
               </div>
 
               <div className="p-5 space-y-2.5 max-h-[70vh] overflow-y-auto">
-                {giftedByName && (
+                {(giftedByName || unlockedBy) && (
                   <div className="bg-pink-50 border border-pink-200 rounded-lg p-3">
                     <p className="text-pink-700 text-xs font-bold mb-0.5 flex items-center gap-1">
-                      <Gift className="w-3 h-3" />Presenteado por
+                      <Gift className="w-3 h-3" />
+                      {giftedByName ? "Presenteado por" : SOURCE_LABEL[unlockedBy ?? ""] ?? "Adquirida por"}
                     </p>
-                    <p className="text-sm font-semibold">{giftedByName}</p>
+                    <p className="text-sm font-semibold">
+                      {giftedByName ?? (unlockedBy ? (SOURCE_LABEL[unlockedBy] ?? unlockedBy) : "—")}
+                    </p>
                   </div>
                 )}
                 <div className="grid grid-cols-2 gap-2 text-sm">
@@ -962,6 +976,7 @@ export default function AlbumPage() {
           isUnlocked={myCardSet.has(selectedCard.id)}
           duplicateCount={cardCounts[selectedCard.id]}
           giftedByName={giftInfo?.[selectedCard.id]?.giftedByName ?? null}
+          unlockedBy={giftInfo?.[selectedCard.id]?.unlockedBy ?? null}
           onClose={() => setSelectedCard(null)}
         />
       )}

@@ -1027,7 +1027,7 @@ function PeerMissionDialog({
               <SelectTrigger className="w-full">
                 <SelectValue placeholder="Selecione um colega..." />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="max-h-72 overflow-y-auto">
                 {users.map((u) => (
                   <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
                 ))}

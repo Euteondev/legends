@@ -1358,25 +1358,27 @@ export async function updateAppSettings(data: { duplicateDonationPoints: number 
 
 export async function getMyCardGiftInfo(
   userId: string
-): Promise<Record<string, { count: number; giftedByName: string | null }>> {
+): Promise<Record<string, { count: number; giftedByName: string | null; unlockedBy: string | null }>> {
   const snap = await getDocs(query(collection(db, "userCards"), where("userId", "==", userId)));
-  const result: Record<string, { count: number; giftedByName: string | null; unlockedAt: number }> = {};
+  const result: Record<string, { count: number; giftedByName: string | null; unlockedBy: string | null; unlockedAt: number }> = {};
   for (const d of snap.docs) {
     const data = d.data();
     const collaboratorId = data.collaboratorId as string;
     const unlockedAtMs = data.unlockedAt instanceof Timestamp ? data.unlockedAt.toMillis() : 0;
     const giftedByName = (data.giftedByName as string | undefined) ?? null;
+    const unlockedBy = (data.unlockedBy as string | undefined) ?? null;
     if (!result[collaboratorId]) {
-      result[collaboratorId] = { count: 0, giftedByName: null, unlockedAt: -1 };
+      result[collaboratorId] = { count: 0, giftedByName: null, unlockedBy: null, unlockedAt: -1 };
     }
     result[collaboratorId]!.count++;
     if (unlockedAtMs >= result[collaboratorId]!.unlockedAt) {
       result[collaboratorId]!.unlockedAt = unlockedAtMs;
       result[collaboratorId]!.giftedByName = giftedByName;
+      result[collaboratorId]!.unlockedBy = unlockedBy;
     }
   }
-  const out: Record<string, { count: number; giftedByName: string | null }> = {};
-  for (const [k, v] of Object.entries(result)) out[k] = { count: v.count, giftedByName: v.giftedByName };
+  const out: Record<string, { count: number; giftedByName: string | null; unlockedBy: string | null }> = {};
+  for (const [k, v] of Object.entries(result)) out[k] = { count: v.count, giftedByName: v.giftedByName, unlockedBy: v.unlockedBy };
   return out;
 }
 
