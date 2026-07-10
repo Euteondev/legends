@@ -1549,7 +1549,7 @@ export async function approveMission(
       getDoc(doc(db, "users", targetUserId)),
     ]);
 
-    const { rewardCard, bonusPoints } = await resolveMissionReward(targetUserId, targetCards, allCollabs, mission);
+    const { rewardCard, bonusPoints } = await resolveMissionReward(targetUserId, targetCards, allCollabs, mission, true);
     // Remetente ganha pontos — atomic increment
     batch.update(doc(db, "users", um.userId), { points: increment(mission.rewardPoints) });
 
@@ -1561,6 +1561,7 @@ export async function approveMission(
         collaboratorId: rewardCard.id,
         unlockedAt: serverTimestamp(),
         unlockedBy: "peer_gift",
+        giftedByName: senderDoc.data()?.name ?? "",
       });
       const updatedTargetCards = [...targetCards, rewardCard.id];
       const targetProgress = allCollabs.length > 0
