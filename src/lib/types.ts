@@ -19,9 +19,7 @@ export interface Collaborator {
   management: string;
   email: string | null;
   photoUrl: string | null;
-  backgroundUrl?: string | null;
   yearsAtVale: number | null;
-  keyBehavior?: string | null;
   superPower: string | null;
   curiosity: string | null;
   achievement: string | null;
@@ -31,7 +29,6 @@ export interface Collaborator {
   category: string;
   points: number;
   isSpecial: boolean;
-  hideCardName?: boolean;
 }
 
 export interface Mission {
@@ -44,20 +41,6 @@ export interface Mission {
   type: "auto" | "peer" | "evidence";
   requiresApproval: boolean;
   status?: "open" | "closed";
-  rewardMode?: "random" | "specific" | "points_only";
-  specificCardId?: string | null;
-  // For peer_question type: dual reward config
-  challengerRewardPoints?: number;
-  challengerRewardMode?: "random" | "specific" | "points_only";
-  challengerSpecificCardId?: string | null;
-  challengedRewardPoints?: number;
-  challengedRewardMode?: "random" | "specific" | "points_only";
-  challengedSpecificCardId?: string | null;
-}
-
-export interface CategorySetting {
-  name: string;
-  locked: boolean;
 }
 
 export interface MyMission {
@@ -74,19 +57,6 @@ export interface MyMission {
   completed: boolean;
   submissionStatus: "in_progress" | "pending_review" | "rejected";
   reviewNote: string | null;
-  targetUserId?: string | null;
-  targetUserName?: string | null;
-  challengeQuestion?: string | null;
-  challengeStatus?: "pending" | "correct" | null;
-}
-
-export interface IncomingChallenge {
-  userMissionId: string;
-  missionId: string;
-  missionTitle: string;
-  fromUserId: string;
-  fromUserName: string;
-  question: string;
 }
 
 export interface RankingEntry {
@@ -116,11 +86,8 @@ export interface RecentActivity {
   collaboratorName: string;
   collaboratorPhoto: string | null;
   rarity: string;
-  type?: "card" | "rarity_upgrade" | "peer_gift" | "challenge_complete" | "duplicate_gift";
+  type?: "card" | "rarity_upgrade";
   newRarity?: string;
-  missionTitle?: string;
-  senderName?: string;
-  recipientName?: string;
 }
 
 export interface PendingMission {
@@ -132,5 +99,4 @@ export interface PendingMission {
   missionTitle: string;
   proofText: string | null;
   submittedAt: string | null;
-  targetUserName?: string | null;
 }

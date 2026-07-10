@@ -30,17 +30,15 @@ interface CollaboratorCardProps {
   collaborator: Collaborator;
   isUnlocked: boolean;
   onClick?: () => void;
-  duplicateCount?: number;
 }
 
 export function CollaboratorCard({
   collaborator,
   isUnlocked,
   onClick,
-  duplicateCount,
 }: CollaboratorCardProps) {
   const rarity = collaborator.rarity || "comum";
-  const bg = collaborator.backgroundUrl || CARD_BACKGROUNDS[rarity];
+  const bg = CARD_BACKGROUNDS[rarity];
   const glowColor = GLOW_COLORS[rarity];
   const nameBg = NAME_COLORS[rarity];
   const displayLabel = collaborator.position || collaborator.role;
@@ -79,16 +77,6 @@ export function CollaboratorCard({
         draggable={false}
       />
 
-      {/* 🎴 Repetida */}
-      {!!duplicateCount && duplicateCount > 1 && (
-        <div
-          className="absolute z-40 top-1.5 right-1.5 rounded-full bg-orange-500 text-white text-[10px] font-black px-1.5 py-0.5 shadow-md border border-white/50"
-          title={`Você tem ${duplicateCount} figurinhas repetidas`}
-        >
-          x{duplicateCount}
-        </div>
-      )}
-
       {/* ✨ brilho animado */}
       <motion.div
         className="absolute inset-0 z-10"
@@ -122,45 +110,42 @@ export function CollaboratorCard({
             className="w-full h-full object-cover object-[50%_30%]"
             draggable={false}
           />
-        ) : !collaborator.isSpecial ? (
+        ) : (
           <div className="w-full h-full flex items-center justify-center bg-white/20">
             <UserIcon className="w-1/3 h-1/3 text-gray-400" />
           </div>
-        ) : null}
+        )}
       </div>
 
       {/* 🏷️ NOME (ALINHADO COM BASE REAL DA MOLDURA) */}
-      {!collaborator.hideCardName && (
+      <div
+        className="absolute z-30"
+        style={{
+          left: "15%",
+          right: "15%",
+          bottom: "17%",
+        }}
+      >
         <div
-          className="absolute z-30"
+          className="rounded flex flex-col justify-center text-center border border-white/25"
           style={{
-            left: "15%",
-            right: "15%",
-            bottom: "17%",
+            height: "13%",
+            background: nameBg,
+            padding: "3px 6px",
+            boxShadow: "0 2px 8px rgba(0,0,0,0.35)",
           }}
         >
-          <div
-            className="rounded flex flex-col justify-center text-center border border-white/25"
-            style={{
-              height: "13%",
-              background: nameBg,
-              padding: "3px 6px",
-              boxShadow: "0 2px 8px rgba(0,0,0,0.35)",
-            }}
-          >
-            <p className="text-white text-[10px] font-bold truncate drop-shadow">
-              {collaborator.name}
+          <p className="text-white text-[10px] font-bold truncate drop-shadow">
+            {collaborator.name}
+          </p>
+
+          {displayLabel && (
+            <p className="text-white/90 text-[8px] truncate">
+              {displayLabel}
             </p>
-
-            {displayLabel && (
-              <p className="text-white/90 text-[8px] truncate">
-                {displayLabel}
-              </p>
-            )}
-
-          </div>
+          )}
         </div>
-      )}
+      </div>
     </motion.div>
   );
 }

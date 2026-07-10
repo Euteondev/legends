@@ -1,5 +1,4 @@
 import { motion } from "framer-motion";
-import { useMemo } from "react";
 import { Link } from "wouter";
 import {
   useGetFeaturedCollaborators,
@@ -7,7 +6,6 @@ import {
   useGetRecentActivity,
   useGetAlbumStats,
   useGetMyCards,
-  useListCollaborators,
 } from "@/hooks/use-db";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
@@ -40,19 +38,10 @@ export default function HomePage() {
   const { data: stats, isLoading: statsLoading } = useGetAlbumStats();
   const { data: myCards } = useGetMyCards();
 
-  const { data: collaborators } = useListCollaborators();
-  const collaboratorIdSet = useMemo(
-    () => new Set((collaborators ?? []).map((c) => c.id)),
-    [collaborators]
-  );
-  const validUnlockedCount = useMemo(
-    () => (myCards ?? []).filter((id) => collaboratorIdSet.has(id)).length,
-    [myCards, collaboratorIdSet]
-  );
-
   const top3 = rankings?.slice(0, 3) ?? [];
-  const totalCards = collaborators?.length ?? stats?.total ?? 0;
-  const albumProgress = Math.min(100, totalCards > 0 ? Math.round((validUnlockedCount / totalCards) * 100) : 0);
+  const unlockedCount = myCards?.length ?? 0;
+  const totalCards = stats?.total ?? 0;
+  const albumProgress = totalCards > 0 ? Math.round((unlockedCount / totalCards) * 100) : 0;
 
   return (
     <div className="space-y-8">
@@ -243,8 +232,8 @@ export default function HomePage() {
               {[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-12 rounded-lg" />)}
             </div>
           ) : activity && activity.length > 0 ? (
-            <div className="divide-y divide-border max-h-[520px] overflow-y-auto">
-              {activity.map((item, idx) => (
+            <div className="divide-y divide-border">
+              {activity.slice(0, 8).map((item, idx) => (
                 <motion.div
                   key={`${item.userId}-${item.collaboratorId}-${item.unlockedAt}`}
                   initial={{ opacity: 0, x: -10 }}
@@ -256,56 +245,11 @@ export default function HomePage() {
                     ⚽
                   </div>
                   <div className="flex-1 min-w-0">
-                    {item.type === "peer_gift" ? (
-                      <p className="text-sm font-medium truncate">
-                        <span className="font-bold text-foreground">{item.senderName}</span>
-                        <span className="text-muted-foreground"> presenteou </span>
-                        <span className="font-bold text-foreground">{item.recipientName}</span>
-                        {item.collaboratorName && (
-                          <>
-                            <span className="text-muted-foreground"> com </span>
-                            <span className="font-bold text-foreground">"{item.collaboratorName}"</span>
-                          </>
-                        )}
-                        {item.missionTitle && (
-                          <span className="text-muted-foreground"> · missão "{item.missionTitle}"</span>
-                        )}
-                      </p>
-                    ) : item.type === "duplicate_gift" ? (
-                      <p className="text-sm font-medium truncate">
-                        <span className="font-bold text-foreground">{item.senderName}</span>
-                        <span className="text-muted-foreground"> doou uma figurinha repetida para </span>
-                        <span className="font-bold text-foreground">{item.recipientName}</span>
-                        {item.collaboratorName && (
-                          <>
-                            <span className="text-muted-foreground"> · </span>
-                            <span className="font-bold text-foreground">"{item.collaboratorName}"</span>
-                          </>
-                        )}
-                      </p>
-                    ) : item.type === "challenge_complete" ? (
-                      <p className="text-sm font-medium truncate">
-                        <span className="font-bold text-foreground">{item.recipientName}</span>
-                        <span className="text-muted-foreground"> respondeu o desafio de </span>
-                        <span className="font-bold text-foreground">{item.senderName}</span>
-                        {item.missionTitle && (
-                          <span className="text-muted-foreground"> · "{item.missionTitle}"</span>
-                        )}
-                      </p>
-                    ) : item.type === "rarity_upgrade" ? (
-                      <p className="text-sm font-medium truncate">
-                        <span className="font-bold text-foreground">{item.userName}</span>
-                        <span className="text-muted-foreground"> evoluiu </span>
-                        <span className="font-bold text-foreground">{item.collaboratorName}</span>
-                        <span className="text-muted-foreground"> para {RARITY_LABELS[item.newRarity ?? ""] ?? item.newRarity}</span>
-                      </p>
-                    ) : (
-                      <p className="text-sm font-medium truncate">
-                        <span className="font-bold text-foreground">{item.userName}</span>
-                        <span className="text-muted-foreground"> desbloqueou </span>
-                        <span className="font-bold text-foreground">{item.collaboratorName}</span>
-                      </p>
-                    )}
+                    <p className="text-sm font-medium truncate">
+                      <span className="font-bold text-foreground">{item.userName}</span>
+                      <span className="text-muted-foreground"> desbloqueou </span>
+                      <span className="font-bold text-foreground">{item.collaboratorName}</span>
+                    </p>
                     <p className="text-xs text-muted-foreground">
                       {new Date(item.unlockedAt).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}
                     </p>
