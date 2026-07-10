@@ -366,3 +366,9 @@ export function useRejectMission() {
     }) => db.rejectMission(userMissionId, data.note),
   });
 }
+
+export function useRepairMissingPeerGifts() {
+  return useMutation({
+    mutationFn: () => db.repairMissingPeerGifts(),
+  });
+}

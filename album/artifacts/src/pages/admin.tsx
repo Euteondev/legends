@@ -23,6 +23,7 @@ import {
   getListMissionsQueryKey,
   useGetAppSettings,
   useUpdateAppSettings,
+  useRepairMissingPeerGifts,
   getListUsersQueryKey,
   getListPendingMissionsQueryKey,
   getGetMyMissionsQueryKey,
@@ -1224,6 +1225,41 @@ function DuplicateDonationSettings() {
   );
 }
 
+function RepairPeerGiftsButton() {
+  const repair = useRepairMissingPeerGifts();
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  const handleRepair = () => {
+    repair.mutate(undefined, {
+      onSuccess: (data) => {
+        queryClient.invalidateQueries();
+        toast({
+          title: data.repaired > 0
+            ? `✅ ${data.repaired} presente(s) corrigido(s)!`
+            : "Nenhum presente pendente de correção encontrado.",
+        });
+      },
+      onError: () => toast({ title: "Erro ao corrigir presentes", variant: "destructive" }),
+    });
+  };
+
+  return (
+    <div className="bg-card border border-border rounded-xl p-4 flex items-center gap-3 flex-wrap">
+      <div className="flex-1 min-w-[220px]">
+        <p className="font-semibold text-sm">🛠️ Corrigir presentes de interação antigos</p>
+        <p className="text-xs text-muted-foreground">
+          Missões de interação aprovadas antes da correção podem não ter gerado a figurinha nem a atividade
+          quando o destinatário já possuía a figurinha. Use este botão para conceder retroativamente o que faltou.
+        </p>
+      </div>
+      <Button size="sm" variant="outline" onClick={handleRepair} disabled={repair.isPending}>
+        {repair.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Corrigir agora"}
+      </Button>
+    </div>
+  );
+}
+
 function MissionsTab() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -1380,6 +1416,7 @@ function MissionsTab() {
       </div>
 
       <DuplicateDonationSettings />
+      <RepairPeerGiftsButton />
 
       {isLoading ? (
         <div className="space-y-2">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-16 rounded-lg" />)}</div>

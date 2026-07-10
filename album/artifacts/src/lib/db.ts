@@ -1620,6 +1620,105 @@ export async function approveMission(
   return { rewardCard, bonusPoints };
 }
 
+// ─── Repair: retroactively grant peer-gift rewards that were approved before ──
+// the duplicate-allow fix existed (so the card/activity never got created).
+export async function repairMissingPeerGifts(): Promise<{ repaired: number }> {
+  const [missionsSnap, userMissionsSnap] = await Promise.all([
+    getDocs(collection(db, "missions")),
+    getDocs(query(collection(db, "userMissions"), where("completed", "==", true))),
+  ]);
+
+  const peerInteractionMissionIds = new Set(
+    missionsSnap.docs
+      .filter((d) => d.data().missionType === "peer_interaction")
+      .map((d) => d.id)
+  );
+
+  const candidates = userMissionsSnap.docs.filter((d) => {
+    const data = d.data();
+    return (
+      peerInteractionMissionIds.has(data.missionId as string) &&
+      !!data.targetUserId
+    );
+  });
+
+  if (candidates.length === 0) return { repaired: 0 };
+
+  const [existingActivitiesSnap, allCollabs] = await Promise.all([
+    getDocs(query(collection(db, "missionActivities"), where("type", "==", "peer_gift"))),
+    getAllCollaborators(),
+  ]);
+
+  const existingKeys = new Set(
+    existingActivitiesSnap.docs.map((d) => {
+      const data = d.data();
+      return `${data.missionId}:${data.senderId}:${data.recipientId}`;
+    })
+  );
+
+  let repaired = 0;
+  const batch = writeBatch(db);
+
+  for (const umDoc of candidates) {
+    const um = umDoc.data();
+    const missionId = um.missionId as string;
+    const senderId = um.userId as string;
+    const targetUserId = um.targetUserId as string;
+    const key = `${missionId}:${senderId}:${targetUserId}`;
+    if (existingKeys.has(key)) continue; // already has a logged gift, nothing to repair
+
+    const missionDoc = missionsSnap.docs.find((d) => d.id === missionId);
+    if (!missionDoc) continue;
+    const mission = toMission(missionDoc.id, missionDoc.data());
+
+    const [targetCards, senderDoc, targetDoc] = await Promise.all([
+      getUserCards(targetUserId),
+      getDoc(doc(db, "users", senderId)),
+      getDoc(doc(db, "users", targetUserId)),
+    ]);
+    if (!senderDoc.exists() || !targetDoc.exists()) continue;
+
+    const { rewardCard } = await resolveMissionReward(targetUserId, targetCards, allCollabs, mission, true);
+    if (!rewardCard) continue;
+
+    const cardRef = doc(collection(db, "userCards"));
+    batch.set(cardRef, {
+      userId: targetUserId,
+      collaboratorId: rewardCard.id,
+      unlockedAt: serverTimestamp(),
+      unlockedBy: "peer_gift",
+      giftedByName: senderDoc.data()?.name ?? "",
+    });
+
+    const updatedTargetCards = [...targetCards, rewardCard.id];
+    const targetProgress = allCollabs.length > 0
+      ? (updatedTargetCards.length / allCollabs.length) * 100 : 0;
+    batch.update(doc(db, "users", targetUserId), { progress: targetProgress });
+
+    const activityRef = doc(collection(db, "missionActivities"));
+    batch.set(activityRef, {
+      type: "peer_gift",
+      senderId,
+      senderName: senderDoc.data()?.name ?? "",
+      recipientId: targetUserId,
+      recipientName: targetDoc.data()?.name ?? "",
+      cardId: rewardCard.id,
+      cardName: rewardCard.name,
+      cardRarity: rewardCard.rarity,
+      missionId,
+      missionTitle: mission.title,
+      pointsGiven: mission.rewardPoints,
+      createdAt: um.completedAt ?? serverTimestamp(),
+    });
+
+    existingKeys.add(key); // avoid double-repair if duplicated in candidates
+    repaired++;
+  }
+
+  if (repaired > 0) await batch.commit();
+  return { repaired };
+}
+
 export async function rejectMission(
   userMissionId: string,
   note: string
