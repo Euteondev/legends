@@ -3,8 +3,12 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   useListCollaborators,
   useGetMyCards,
+  useGetMyCardGiftInfo,
+  useDonateDuplicateCard,
   useUnlockCard,
   useChallengeCard,
+  useListCategorySettings,
+  useListUsers,
   getGetMyCardsQueryKey,
   getGetAlbumStatsQueryKey,
   getGetRecentActivityQueryKey,
@@ -21,7 +25,7 @@ import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Search, X, Lock, Unlock, Star, Zap, Award, Clock, Users,
-  ChevronLeft, ChevronRight, BookOpen, Loader2, HelpCircle
+  ChevronLeft, ChevronRight, BookOpen, Loader2, HelpCircle, Gift
 } from "lucide-react";
 import { CollaboratorCard } from "@/components/cards/CollaboratorCard";
 
@@ -54,17 +58,32 @@ const CATEGORY_CONFIG: Record<string, { emoji: string; color: string; bg: string
 
 const DEFAULT_CATEGORY = { emoji: "⭐", color: "text-primary", bg: "bg-primary/5 border-primary/20" };
 
+const POSITION_ORDER = ["Goleiro", "Zagueiro", "Lateral", "Volante", "Meio Campo", "Atacante", "Técnico", "Auxiliar Técnico"];
+
+function sortByPosition(cards: Collaborator[]): Collaborator[] {
+  return [...cards].sort((a, b) => {
+    const aIdx = a.position ? POSITION_ORDER.indexOf(a.position) : -1;
+    const bIdx = b.position ? POSITION_ORDER.indexOf(b.position) : -1;
+    const aRank = aIdx === -1 ? POSITION_ORDER.length : aIdx;
+    const bRank = bIdx === -1 ? POSITION_ORDER.length : bIdx;
+    if (aRank !== bRank) return aRank - bRank;
+    return a.name.localeCompare(b.name, "pt-BR");
+  });
+}
+
 // ── Album sticker slot ─────────────────────────────────────────────────────────
 function StickerSlot({
   collaborator,
   isUnlocked,
   slotIdx,
   onClick,
+  duplicateCount,
 }: {
   collaborator: Collaborator;
   isUnlocked: boolean;
   slotIdx: number;
   onClick: () => void;
+  duplicateCount?: number;
 }) {
   if (!isUnlocked) {
     return (
@@ -92,7 +111,7 @@ function StickerSlot({
 
   return (
     <div data-testid={`card-collaborator-${collaborator.id}`}>
-      <CollaboratorCard collaborator={collaborator} isUnlocked={true} onClick={onClick} />
+      <CollaboratorCard collaborator={collaborator} isUnlocked={true} onClick={onClick} duplicateCount={duplicateCount} />
     </div>
   );
 }
@@ -243,101 +262,286 @@ function ChallengeDialog({
   );
 }
 
-// ── Card detail modal ──────────────────────────────────────────────────────────
-function CardDetailModal({
+// ── Donate duplicate dialog ─────────────────────────────────────────────────────
+function DonateDialog({
   card,
-  isUnlocked,
   onClose,
+  onDonated,
 }: {
   card: Collaborator;
-  isUnlocked: boolean;
   onClose: () => void;
+  onDonated: () => void;
 }) {
-  const RARITY_GLOW: Record<string, string> = {
-    comum: "",
-    rara: "shadow-[0_0_15px_rgba(60,181,229,0.4)]",
-    epica: "shadow-[0_0_15px_rgba(168,85,247,0.5)]",
-    lendaria: "shadow-[0_0_25px_rgba(255,215,0,0.6)]",
+  const { user } = useAuth();
+  const { data: users } = useListUsers();
+  const { toast } = useToast();
+  const donate = useDonateDuplicateCard();
+  const [search, setSearch] = useState("");
+  const [targetId, setTargetId] = useState<string | null>(null);
+
+  const options = (users ?? []).filter(
+    (u) => u.id !== user?.id && u.name.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const handleDonate = () => {
+    if (!targetId) return;
+    donate.mutate(
+      { collaboratorId: card.id, targetUserId: targetId },
+      {
+        onSuccess: () => {
+          toast({ title: "🎁 Figurinha doada com sucesso!" });
+          onDonated();
+        },
+        onError: (err: any) => {
+          toast({ title: "Erro ao doar figurinha", description: err?.message, variant: "destructive" });
+        },
+      }
+    );
   };
 
   return (
     <Dialog open onOpenChange={onClose}>
-      <DialogContent className="max-w-md p-0 overflow-hidden rounded-2xl">
-        <DialogTitle className="sr-only">{card.name}</DialogTitle>
-        <div className={`relative bg-card ${RARITY_GLOW[card.rarity]} ${card.isSpecial ? "card-shine" : ""}`}>
-          <div className="relative h-56 bg-muted overflow-hidden">
-            {card.photoUrl ? (
-              <img src={card.photoUrl} alt={card.name} className="w-full h-full object-cover" />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-primary/20 to-primary/40">
-                <Users className="w-20 h-20 text-primary/60" />
-              </div>
-            )}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent" />
-            <div className="absolute bottom-4 left-4 right-4">
-              <Badge className={`mb-2 text-xs font-bold border ${RARITY_BADGE[card.rarity]} border-current`}>
-                {RARITY_LABEL[card.rarity]?.toUpperCase() ?? card.rarity.toUpperCase()}
-                {card.isSpecial && " — ESPECIAL"}
-              </Badge>
-              <h2 className="text-xl font-black text-white drop-shadow-md">{card.name}</h2>
-              <p className="text-white/80 text-sm">{card.role}</p>
-            </div>
-            <div className="absolute top-3 right-3">
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center shadow-lg ${isUnlocked ? "bg-green-500" : "bg-gray-500"}`}>
-                {isUnlocked ? <Unlock className="w-4 h-4 text-white" /> : <Lock className="w-4 h-4 text-white" />}
-              </div>
-            </div>
-          </div>
-
-          <div className="p-5 space-y-3">
-            <div className="grid grid-cols-2 gap-2 text-sm">
-              <div className="bg-muted/60 rounded-lg p-2.5">
-                <p className="text-muted-foreground text-xs mb-0.5">Área</p>
-                <p className="font-semibold">{card.area}</p>
-              </div>
-              <div className="bg-muted/60 rounded-lg p-2.5">
-                <p className="text-muted-foreground text-xs mb-0.5">Gerência</p>
-                <p className="font-semibold truncate">{card.management}</p>
-              </div>
-              {card.yearsAtVale != null && (
-                <div className="bg-muted/60 rounded-lg p-2.5">
-                  <p className="text-muted-foreground text-xs mb-0.5 flex items-center gap-1"><Clock className="w-3 h-3" />Tempo de Vale</p>
-                  <p className="font-semibold">{card.yearsAtVale} {card.yearsAtVale === 1 ? "ano" : "anos"}</p>
-                </div>
-              )}
-              <div className="bg-muted/60 rounded-lg p-2.5">
-                <p className="text-muted-foreground text-xs mb-0.5 flex items-center gap-1"><Star className="w-3 h-3 text-yellow-500" />Pontos</p>
-                <p className="font-semibold">{card.points} pts</p>
-              </div>
-            </div>
-
-            {card.superPower && (
-              <div className="bg-primary/10 border border-primary/20 rounded-lg p-3">
-                <p className="text-primary text-xs font-bold mb-0.5 flex items-center gap-1"><Zap className="w-3 h-3" />Super Poder</p>
-                <p className="text-sm">{card.superPower}</p>
-              </div>
-            )}
-
-            {card.curiosity && (
-              <div className="bg-muted/60 rounded-lg p-3">
-                <p className="text-muted-foreground text-xs font-bold mb-0.5">💡 Curiosidade</p>
-                <p className="text-sm">{card.curiosity}</p>
-              </div>
-            )}
-            {card.achievement && (
-              <div className="bg-secondary/10 border border-secondary/20 rounded-lg p-3">
-                <p className="text-secondary text-xs font-bold mb-0.5 flex items-center gap-1"><Award className="w-3 h-3" />Conquista</p>
-                <p className="text-sm">{card.achievement}</p>
-              </div>
-            )}
-
-            <div className="flex items-center justify-between pt-2 border-t border-border">
-              <Badge variant="outline" className="text-xs">{card.category}</Badge>
-              <Button variant="ghost" size="sm" onClick={onClose}>Fechar</Button>
-            </div>
-          </div>
+      <DialogContent className="max-w-sm rounded-2xl">
+        <DialogTitle className="text-base font-black flex items-center gap-2">
+          <Gift className="w-4 h-4 text-primary" /> Doar figurinha repetida
+        </DialogTitle>
+        <p className="text-sm text-muted-foreground">
+          Escolha quem vai receber uma cópia extra de <strong>{card.name}</strong>.
+        </p>
+        <Input
+          placeholder="Buscar participante..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+        <div className="max-h-56 overflow-y-auto border border-border rounded-lg divide-y divide-border">
+          {options.map((u) => (
+            <button
+              key={u.id}
+              onClick={() => setTargetId(u.id)}
+              className={`w-full text-left px-3 py-2 text-sm hover:bg-muted/60 transition-colors ${
+                targetId === u.id ? "bg-primary/10 font-semibold" : ""
+              }`}
+            >
+              {u.name}
+            </button>
+          ))}
+          {options.length === 0 && (
+            <p className="text-center text-xs text-muted-foreground py-4">Nenhum participante encontrado</p>
+          )}
+        </div>
+        <div className="flex gap-2 pt-1">
+          <Button variant="outline" className="flex-1" onClick={onClose}>Cancelar</Button>
+          <Button className="flex-1" disabled={!targetId || donate.isPending} onClick={handleDonate}>
+            {donate.isPending ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : null}
+            Doar
+          </Button>
         </div>
       </DialogContent>
+    </Dialog>
+  );
+}
+
+// ── Card detail modal ──────────────────────────────────────────────────────────
+const SOURCE_LABEL: Record<string, string> = {
+  peer_gift: "Presente de colega",
+  challenge_reward: "Recompensa de desafio",
+  duplicate_donation: "Doação de repetida",
+  mission: "Conquista de missão",
+  store: "Loja",
+  admin_grant: "Concedido pelo admin",
+};
+
+function CardDetailModal({
+  card,
+  onClose,
+  duplicateCount,
+  giftedByName,
+  unlockedBy,
+}: {
+  card: Collaborator;
+  isUnlocked: boolean;
+  onClose: () => void;
+  duplicateCount?: number;
+  giftedByName?: string | null;
+  unlockedBy?: string | null;
+}) {
+  const [showBack, setShowBack] = useState(false);
+  const [showDonate, setShowDonate] = useState(false);
+  const queryClient = useQueryClient();
+
+  return (
+    <Dialog open onOpenChange={onClose}>
+      <DialogContent className="max-w-sm p-0 overflow-hidden rounded-2xl">
+        <DialogTitle className="sr-only">{card.name}</DialogTitle>
+
+        <AnimatePresence mode="wait">
+          {!showBack ? (
+            <motion.div
+              key="front"
+              initial={{ opacity: 0, x: 40 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -40 }}
+              transition={{ duration: 0.22 }}
+              className="p-6 flex flex-col items-center gap-4 bg-card"
+            >
+              <div className="w-52">
+                <CollaboratorCard collaborator={card} isUnlocked={true} />
+              </div>
+
+              <div className="text-center space-y-1">
+                <h2 className="font-black text-lg text-foreground">{card.name}</h2>
+                <p className="text-muted-foreground text-sm">{card.role}</p>
+                <Badge className={`border-0 ${RARITY_BADGE[card.rarity]}`}>
+                  {card.isSpecial ? "⭐ " : ""}
+                  {RARITY_LABEL[card.rarity] ?? card.rarity}
+                </Badge>
+                {!!duplicateCount && duplicateCount > 1 && (
+                  <p className="text-xs text-orange-600 font-semibold">
+                    🎴 Você tem {duplicateCount} figurinhas repetidas
+                  </p>
+                )}
+              </div>
+
+              {!!duplicateCount && duplicateCount > 1 && (
+                <Button
+                  className="w-full bg-orange-500 hover:bg-orange-600 text-white"
+                  onClick={() => setShowDonate(true)}
+                >
+                  <Gift className="w-4 h-4 mr-1.5" /> Doar figurinha repetida
+                </Button>
+              )}
+
+              <div className="flex gap-2 w-full">
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => setShowBack(true)}
+                >
+                  Ver verso →
+                </Button>
+                <Button variant="ghost" className="flex-1" onClick={onClose}>
+                  Fechar
+                </Button>
+              </div>
+            </motion.div>
+          ) : (
+            <motion.div
+              key="back"
+              initial={{ opacity: 0, x: 40 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -40 }}
+              transition={{ duration: 0.22 }}
+              className="bg-card"
+            >
+              <div className="px-5 pt-5 pb-3 border-b border-border flex items-center justify-between">
+                <div>
+                  <h2 className="font-black text-base">{card.name}</h2>
+                  <p className="text-muted-foreground text-xs">{card.role}</p>
+                </div>
+                <Badge className={`border-0 ${RARITY_BADGE[card.rarity]}`}>
+                  {RARITY_LABEL[card.rarity] ?? card.rarity}
+                </Badge>
+              </div>
+
+              <div className="p-5 space-y-2.5 max-h-[70vh] overflow-y-auto">
+                {(giftedByName || unlockedBy) && (
+                  <div className="bg-pink-50 border border-pink-200 rounded-lg p-3">
+                    <p className="text-pink-700 text-xs font-bold mb-0.5 flex items-center gap-1">
+                      <Gift className="w-3 h-3" />
+                      {giftedByName ? "Presenteado por" : SOURCE_LABEL[unlockedBy ?? ""] ?? "Adquirida por"}
+                    </p>
+                    <p className="text-sm font-semibold">
+                      {giftedByName ?? (unlockedBy ? (SOURCE_LABEL[unlockedBy] ?? unlockedBy) : "—")}
+                    </p>
+                  </div>
+                )}
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <div className="bg-muted/60 rounded-lg p-2.5">
+                    <p className="text-muted-foreground text-xs mb-0.5">Área</p>
+                    <p className="font-semibold">{card.area}</p>
+                  </div>
+                  <div className="bg-muted/60 rounded-lg p-2.5">
+                    <p className="text-muted-foreground text-xs mb-0.5">Gerência</p>
+                    <p className="font-semibold truncate">{card.management}</p>
+                  </div>
+                  {card.position && (
+                    <div className="bg-muted/60 rounded-lg p-2.5">
+                      <p className="text-muted-foreground text-xs mb-0.5">⚽ Posição</p>
+                      <p className="font-semibold">{card.position}</p>
+                    </div>
+                  )}
+                  {card.yearsAtVale != null && (
+                    <div className="bg-muted/60 rounded-lg p-2.5">
+                      <p className="text-muted-foreground text-xs mb-0.5 flex items-center gap-1"><Clock className="w-3 h-3" />Tempo de Vale</p>
+                      <p className="font-semibold">{card.yearsAtVale} {card.yearsAtVale === 1 ? "ano" : "anos"}</p>
+                    </div>
+                  )}
+                  <div className="bg-muted/60 rounded-lg p-2.5">
+                    <p className="text-muted-foreground text-xs mb-0.5 flex items-center gap-1"><Star className="w-3 h-3 text-yellow-500" />Pontos</p>
+                    <p className="font-semibold">{card.points} pts</p>
+                  </div>
+                  <div className="bg-muted/60 rounded-lg p-2.5">
+                    <p className="text-muted-foreground text-xs mb-0.5">Categoria</p>
+                    <p className="font-semibold truncate">{card.category}</p>
+                  </div>
+                </div>
+
+                {card.superPower && (
+                  <div className="bg-primary/10 border border-primary/20 rounded-lg p-3">
+                    <p className="text-primary text-xs font-bold mb-0.5 flex items-center gap-1"><Zap className="w-3 h-3" />Super Poder</p>
+                    <p className="text-sm">{card.superPower}</p>
+                  </div>
+                )}
+
+                {card.curiosity && (
+                  <div className="bg-muted/60 rounded-lg p-3">
+                    <p className="text-muted-foreground text-xs font-bold mb-0.5">💡 Curiosidade</p>
+                    <p className="text-sm">{card.curiosity}</p>
+                  </div>
+                )}
+
+                {card.achievement && (
+                  <div className="bg-secondary/10 border border-secondary/20 rounded-lg p-3">
+                    <p className="text-secondary text-xs font-bold mb-0.5 flex items-center gap-1"><Award className="w-3 h-3" />Conquista</p>
+                    <p className="text-sm">{card.achievement}</p>
+                  </div>
+                )}
+                {card.keyBehavior && (
+                  <div className="bg-gradient-to-r from-primary/10 to-primary/5 rounded-lg p-3 mt-3 border border-primary/20">
+                    <p className="text-[10px] text-primary font-bold mb-1">
+                      🎯 Comportamento Chave
+                    </p>
+                    <p className="text-foreground text-sm">
+                      {card.keyBehavior}
+                    </p>
+                  </div>
+                )}
+
+                <div className="flex gap-2 pt-1">
+                  <Button variant="outline" className="flex-1" onClick={() => setShowBack(false)}>
+                    ← Ver figurinha
+                  </Button>
+                  <Button variant="ghost" className="flex-1" onClick={onClose}>
+                    Fechar
+                  </Button>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </DialogContent>
+      {showDonate && (
+        <DonateDialog
+          card={card}
+          onClose={() => setShowDonate(false)}
+          onDonated={() => {
+            setShowDonate(false);
+            queryClient.invalidateQueries({ queryKey: getGetMyCardsQueryKey() });
+            queryClient.invalidateQueries({ queryKey: ["myCardGiftInfo"] });
+            queryClient.invalidateQueries({ queryKey: getGetRecentActivityQueryKey() });
+          }}
+        />
+      )}
     </Dialog>
   );
 }
@@ -430,10 +634,32 @@ export default function AlbumPage() {
 
   const { data: collaborators, isLoading } = useListCollaborators();
   const { data: myCards } = useGetMyCards();
+  const { data: giftInfo } = useGetMyCardGiftInfo();
+  const { data: categorySettings } = useListCategorySettings();
   const unlockCard = useUnlockCard();
 
-  const myCardSet = new Set(myCards ?? []);
-  const unlockedCount = myCards?.length ?? 0;
+  const lockedCategories = useMemo(
+    () => new Set((categorySettings ?? []).filter((cs) => cs.locked).map((cs) => cs.name)),
+    [categorySettings]
+  );
+
+  const collaboratorIdSet = useMemo(
+    () => new Set((collaborators ?? []).map((c) => c.id)),
+    [collaborators]
+  );
+  const myCardSet = useMemo(
+    () => new Set((myCards ?? []).filter((id) => collaboratorIdSet.has(id))),
+    [myCards, collaboratorIdSet]
+  );
+  const cardCounts = useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const id of myCards ?? []) {
+      if (!collaboratorIdSet.has(id)) continue;
+      map[id] = (map[id] ?? 0) + 1;
+    }
+    return map;
+  }, [myCards, collaboratorIdSet]);
+  const unlockedCount = myCardSet.size;
   const totalCount = collaborators?.length ?? 0;
 
   const categories = useMemo(
@@ -445,20 +671,24 @@ export default function AlbumPage() {
 
   const categoryCards = useMemo(() => {
     const base = (collaborators ?? []).filter((c) => c.category === activeCategory);
-    if (!search) return base;
+    const sorted = sortByPosition(base);
+    if (!search) return sorted;
     const q = search.toLowerCase();
-    return base.filter((c) => c.name.toLowerCase().includes(q) || c.role.toLowerCase().includes(q));
+    return sorted.filter((c) => c.name.toLowerCase().includes(q) || c.role.toLowerCase().includes(q));
   }, [collaborators, activeCategory, search]);
 
   const allSearchResults = useMemo(() => {
     if (!search) return [];
     const q = search.toLowerCase();
-    return (collaborators ?? []).filter(
-      (c) => c.name.toLowerCase().includes(q) || c.role.toLowerCase().includes(q)
+    return sortByPosition(
+      (collaborators ?? []).filter(
+        (c) => c.name.toLowerCase().includes(q) || c.role.toLowerCase().includes(q)
+      )
     );
   }, [collaborators, search]);
 
   const displayCards = search ? allSearchResults : categoryCards;
+  const isActiveCategoryLocked = lockedCategories.has(activeCategory);
 
   const catStats = useMemo(() => {
     const map: Record<string, { total: number; unlocked: number }> = {};
@@ -473,6 +703,14 @@ export default function AlbumPage() {
   const handleCardClick = (card: Collaborator) => {
     if (myCardSet.has(card.id)) {
       setSelectedCard(card);
+      return;
+    }
+    if (lockedCategories.has(card.category)) {
+      toast({
+        title: "🔒 Categoria bloqueada",
+        description: "Esta categoria ainda não está disponível para desafios.",
+        variant: "destructive",
+      });
       return;
     }
     // Open challenge dialog for locked cards
@@ -568,6 +806,7 @@ export default function AlbumPage() {
                     collaborator={card}
                     isUnlocked={myCardSet.has(card.id)}
                     slotIdx={i}
+                    duplicateCount={cardCounts[card.id]}
                     onClick={() => handleCardClick(card)}
                   />
                 ))}
@@ -587,6 +826,7 @@ export default function AlbumPage() {
                   const cfg = CATEGORY_CONFIG[cat] ?? DEFAULT_CATEGORY;
                   const stats = catStats[cat] ?? { total: 0, unlocked: 0 };
                   const isActive = cat === activeCategory;
+                  const isLocked = lockedCategories.has(cat);
 
                   return (
                     <button
@@ -601,6 +841,7 @@ export default function AlbumPage() {
                       <span>{cfg.emoji}</span>
                       <span className="hidden sm:inline">{cat}</span>
                       <span className="sm:hidden">{cat.split(" ").slice(-1)[0]}</span>
+                      {isLocked && <Lock className="w-3 h-3 text-muted-foreground/70 flex-shrink-0" />}
                       <span className={`text-[10px] font-bold ${isActive ? "" : "text-muted-foreground"}`}>
                         {stats.unlocked}/{stats.total}
                       </span>
@@ -608,6 +849,13 @@ export default function AlbumPage() {
                   );
                 })}
               </div>
+
+              {isActiveCategoryLocked && (
+                <div className="flex items-center gap-2 text-xs text-amber-800 bg-amber-50 rounded-lg px-3 py-2 border border-amber-200">
+                  <Lock className="w-3.5 h-3.5 flex-shrink-0" />
+                  <span>Esta categoria está bloqueada pelo admin. Você pode visualizar as figurinhas, mas ainda não é possível desbloqueá-las por desafio.</span>
+                </div>
+              )}
 
               {/* Album page */}
               <AnimatePresence mode="wait">
@@ -662,6 +910,7 @@ export default function AlbumPage() {
                           collaborator={card}
                           isUnlocked={myCardSet.has(card.id)}
                           slotIdx={i}
+                          duplicateCount={cardCounts[card.id]}
                           onClick={() => handleCardClick(card)}
                         />
                       ))}
@@ -725,6 +974,9 @@ export default function AlbumPage() {
         <CardDetailModal
           card={selectedCard}
           isUnlocked={myCardSet.has(selectedCard.id)}
+          duplicateCount={cardCounts[selectedCard.id]}
+          giftedByName={giftInfo?.[selectedCard.id]?.giftedByName ?? null}
+          unlockedBy={giftInfo?.[selectedCard.id]?.unlockedBy ?? null}
           onClose={() => setSelectedCard(null)}
         />
       )}

@@ -41,6 +41,7 @@ import {
   Loader2,
   Sparkles,
 } from "lucide-react";
+import { behaviorOptions } from "@/lib/constants";
 
 // ─── Photo picker component (avoids useRef inside render prop) ────────────────
 function PhotoPickerField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
@@ -82,6 +83,7 @@ const selfSchema = z.object({
   management: z.string().min(1, "Gerência obrigatória"),
   photoUrl: z.string().optional(),
   yearsAtVale: z.coerce.number().optional(),
+  keyBehavior: z.enum(behaviorOptions).optional(),
   superPower: z.string().optional(),
   curiosity: z.string().optional(),
   achievement: z.string().optional(),
@@ -93,13 +95,13 @@ type SelfForm = z.infer<typeof selfSchema>;
 
 const SELF_DEFAULTS: SelfForm = {
   name: "", role: "", area: "", management: "",
-  photoUrl: "", yearsAtVale: undefined,
+  photoUrl: "", yearsAtVale: undefined, keyBehavior: undefined,
   superPower: "", curiosity: "", achievement: "",
   challengeQuestion: "", challengeAnswer: "", position: "",
 };
 
 // ─── Self-service sticker section ─────────────────────────────────────────────
-function SelfStickerSection({ userEmail }: { userEmail: string }) {
+function SelfStickerSection({ userEmail, displayRarity }: { userEmail: string; displayRarity: string }) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { data: collaborators } = useListCollaborators();
@@ -119,6 +121,7 @@ function SelfStickerSection({ userEmail }: { userEmail: string }) {
 
   const challengeQuestion = useWatch({ control: form.control, name: "challengeQuestion" });
 
+
   const openForm = () => {
     if (myCollaborator) {
       form.reset({
@@ -128,6 +131,7 @@ function SelfStickerSection({ userEmail }: { userEmail: string }) {
         management: myCollaborator.management,
         photoUrl: myCollaborator.photoUrl ?? "",
         yearsAtVale: myCollaborator.yearsAtVale ?? undefined,
+        keyBehavior: myCollaborator.keyBehavior ?? undefined,
         superPower: myCollaborator.superPower ?? "",
         curiosity: myCollaborator.curiosity ?? "",
         achievement: myCollaborator.achievement ?? "",
@@ -150,6 +154,7 @@ function SelfStickerSection({ userEmail }: { userEmail: string }) {
       email: userEmail,
       photoUrl: data.photoUrl || null,
       yearsAtVale: data.yearsAtVale ?? null,
+      keyBehavior: data.keyBehavior ?? null,
       superPower: data.superPower || null,
       curiosity: data.curiosity || null,
       achievement: data.achievement || null,
@@ -199,7 +204,9 @@ function SelfStickerSection({ userEmail }: { userEmail: string }) {
               <h3 className="font-bold text-foreground truncate">{myCollaborator.name}</h3>
               <p className="text-sm text-muted-foreground truncate">{myCollaborator.role}</p>
               <Badge className="mt-1.5 text-[10px] capitalize" variant="secondary">
-                {myCollaborator.rarity === "lendaria" ? "Lendária" : myCollaborator.rarity.charAt(0).toUpperCase() + myCollaborator.rarity.slice(1)}
+                {displayRarity === "lendaria" ? "🟡 Lendária" :
+                 displayRarity === "epica"    ? "🟣 Épica"    :
+                 displayRarity === "rara"     ? "🔵 Rara"     : "⚪ Comum"}
               </Badge>
             </div>
             <Button size="sm" variant="outline" onClick={openForm} className="flex-shrink-0">
@@ -265,6 +272,33 @@ function SelfStickerSection({ userEmail }: { userEmail: string }) {
                 <FormField control={form.control} name="yearsAtVale" render={({ field }) => (
                   <FormItem><FormLabel>Anos na Vale</FormLabel><FormControl><Input type="number" {...field} /></FormControl></FormItem>
                 )} />
+                <FormField
+                  control={form.control}
+                  name="keyBehavior"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>🎯 Comportamento Chave</FormLabel>
+                      <Select
+                        onValueChange={field.onChange}
+                        value={field.value ?? ""}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecionar comportamento..." />
+                          </SelectTrigger>
+                        </FormControl>
+
+                        <SelectContent>
+                          {behaviorOptions.map((option) => (
+                            <SelectItem key={option} value={option}>
+                              {option}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </FormItem>
+                  )}
+                />
                 <FormField control={form.control} name="photoUrl" render={({ field }) => (
                   <FormItem className="col-span-2">
                     <FormLabel>📷 Foto</FormLabel>
@@ -339,7 +373,24 @@ export default function ProfilePage() {
 
   const myRanking = rankings?.find((r) => r.userId === authUser?.id);
   const completedMissions = myMissions?.filter((m) => m.completed) ?? [];
-  const unlockedCount = myCards?.length ?? 0;
+  const collaboratorIdSet = useMemo(
+    () => new Set((collaborators ?? []).map((c) => c.id)),
+    [collaborators]
+  );
+  const unlockedCount = useMemo(
+    () => (myCards ?? []).filter((id) => collaboratorIdSet.has(id)).length,
+    [myCards, collaboratorIdSet]
+  );
+  const totalCount = collaborators?.length ?? 0;
+  const progressPercent = Math.min(
+    100,
+    totalCount > 0 ? Math.round((unlockedCount / totalCount) * 100) : 0
+  );
+  // Rarity displayed on profile follows current album progress
+  const displayRarity =
+    progressPercent >= 100 ? "lendaria" :
+    progressPercent >= 75  ? "epica"    :
+    progressPercent >= 50  ? "rara"     : "comum";
   const totalMissions = myMissions?.length ?? 0;
   const missionProgress = totalMissions > 0 ? (completedMissions.length / totalMissions) * 100 : 0;
 
@@ -397,14 +448,14 @@ export default function ProfilePage() {
           <div className="flex justify-between text-sm mb-1.5">
             <span className="text-white/80">Progresso do Álbum</span>
             <span className="font-bold">
-              {unlockedCount} cards — {Math.round(user?.progress ?? 0)}%
+              {unlockedCount} de {totalCount} — {progressPercent}%
             </span>
           </div>
           <div className="w-full bg-white/20 rounded-full h-2">
             <motion.div
               className="bg-white rounded-full h-2"
               initial={{ width: 0 }}
-              animate={{ width: `${Math.min(user?.progress ?? 0, 100)}%` }}
+              animate={{ width: `${progressPercent}%` }}
               transition={{ duration: 1, ease: "easeOut" }}
             />
           </div>
@@ -427,9 +478,9 @@ export default function ProfilePage() {
                 {myCollaborator.position ?? myCollaborator.role}
               </p>
               <Badge variant="secondary" className="capitalize">
-                {myCollaborator.rarity === "lendaria" ? "🟡 Lendária" :
-                 myCollaborator.rarity === "epica"    ? "🟣 Épica" :
-                 myCollaborator.rarity === "rara"     ? "🔵 Rara" : "⚪ Comum"}
+                {displayRarity === "lendaria" ? "🟡 Lendária" :
+                 displayRarity === "epica"    ? "🟣 Épica"    :
+                 displayRarity === "rara"     ? "🔵 Rara"     : "⚪ Comum"}
               </Badge>
             </div>
           </DialogContent>
@@ -438,7 +489,7 @@ export default function ProfilePage() {
 
       {/* Self-service sticker section */}
       {authUser?.email && (
-        <SelfStickerSection userEmail={authUser.email} />
+        <SelfStickerSection userEmail={authUser.email} displayRarity={displayRarity} />
       )}
 
       {/* Stats grid */}

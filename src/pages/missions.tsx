@@ -6,6 +6,12 @@ import {
   useStartMission,
   useSubmitMissionProof,
   useListCollaborators,
+  useGetMyCards,
+  useListUsers,
+  useStartPeerInteractionMission,
+  useStartQuestionMission,
+  useGetIncomingChallenges,
+  useAnswerChallenge,
   getGetMyMissionsQueryKey,
   getGetMyCardsQueryKey,
   getGetAlbumStatsQueryKey,
@@ -18,19 +24,24 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Play, Award, Loader2, Clock, Send, CheckCircle2, XCircle,
-  Zap, Users, FileText, Star, Lock, TrendingUp, Paperclip, X, Image
+  Zap, Users, FileText, Star, Lock, TrendingUp, Paperclip, X, Image,
+  Handshake, HelpCircle
 } from "lucide-react";
 
 // ── Mission type config ───────────────────────────────────────────────────────
 const MISSION_TYPE_CONFIG: Record<string, { emoji: string; label: string }> = {
-  unlock_cards:    { emoji: "🎴", label: "Figurinhas" },
-  unlock_category: { emoji: "📂", label: "Categoria" },
-  unlock_rarity:   { emoji: "💎", label: "Raridade" },
-  login:           { emoji: "⚡", label: "Login" },
-  album_percent:   { emoji: "📊", label: "Álbum %" },
+  unlock_cards:     { emoji: "🎴", label: "Figurinhas" },
+  unlock_category:  { emoji: "📂", label: "Categoria" },
+  unlock_rarity:    { emoji: "💎", label: "Raridade" },
+  login:            { emoji: "⚡", label: "Login" },
+  album_percent:    { emoji: "📊", label: "Álbum %" },
+  peer_interaction: { emoji: "🤝", label: "Interação" },
+  peer_question:    { emoji: "❓", label: "Desafio" },
 };
 
 const MISSION_KIND: Record<string, { label: string; color: string; icon: React.ElementType }> = {
@@ -377,6 +388,11 @@ function MissionCard({
               )}
             </div>
             <p className="text-xs text-muted-foreground line-clamp-2">{mission.description}</p>
+            {mission.targetUserName && (
+              <p className="text-xs text-muted-foreground mt-0.5">
+                🤝 Colega: <span className="font-semibold text-foreground">{mission.targetUserName}</span>
+              </p>
+            )}
           </div>
         </div>
         <div className="text-right flex-shrink-0">
@@ -413,8 +429,9 @@ function MissionCard({
         )}
       </div>
 
-      {/* Progress bar (only for started missions that aren't completed) */}
-      {mission.started && !mission.completed && (
+      {/* Progress bar (only for started missions that aren't completed, and not peer types) */}
+      {mission.started && !mission.completed &&
+        mission.missionType !== "peer_interaction" && mission.missionType !== "peer_question" && (
         <MissionProgressBar
           progress={mission.progress}
           goal={mission.goal}
@@ -427,6 +444,32 @@ function MissionCard({
         <div className="flex items-center gap-1.5 text-xs text-muted-foreground bg-muted/50 rounded-lg px-2.5 py-2">
           <TrendingUp className="w-3.5 h-3.5 text-primary/60 flex-shrink-0" />
           <span>Esta missão acompanha automaticamente o progresso do seu álbum.</span>
+        </div>
+      )}
+
+      {/* peer_question: waiting for target answer */}
+      {mission.missionType === "peer_question" && mission.started && !mission.completed && (
+        <div className="space-y-1.5 bg-muted/50 rounded-lg px-2.5 py-2">
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <HelpCircle className="w-3.5 h-3.5 text-primary/60 flex-shrink-0" />
+            <span>
+              {mission.challengeStatus === "correct"
+                ? "Seu colega respondeu corretamente!"
+                : `Aguardando ${mission.targetUserName ?? "seu colega"} responder o desafio.`}
+            </span>
+          </div>
+          {mission.challengeQuestion && (
+            <p className="text-xs italic text-foreground/80">"{mission.challengeQuestion}"</p>
+          )}
+        </div>
+      )}
+
+      {/* peer_interaction: pending review note (when not yet in the standard "pending_review" badge state) */}
+      {mission.missionType === "peer_interaction" && mission.started && !mission.completed &&
+        mission.submissionStatus === "in_progress" && (
+        <div className="flex items-center gap-1.5 text-xs text-muted-foreground bg-muted/50 rounded-lg px-2.5 py-2">
+          <Handshake className="w-3.5 h-3.5 text-primary/60 flex-shrink-0" />
+          <span>Interação registrada com {mission.targetUserName ?? "o colega escolhido"}.</span>
         </div>
       )}
 
@@ -494,18 +537,46 @@ export default function MissionsPage() {
   const completeMission = useCompleteMission();
   const startMission = useStartMission();
   const submitProof = useSubmitMissionProof();
+  const startPeerInteraction = useStartPeerInteractionMission();
+  const startQuestionMission = useStartQuestionMission();
+  const { data: incomingChallenges } = useGetIncomingChallenges();
+  const answerChallenge = useAnswerChallenge();
 
   const { user: authUser } = useAuth();
   const { data: collaborators } = useListCollaborators();
+  const { data: myCards } = useGetMyCards();
+  const { data: allUsers } = useListUsers();
   const myCollaborator = useMemo(
     () => collaborators?.find((c) => c.email?.toLowerCase() === authUser?.email?.toLowerCase()) ?? null,
     [collaborators, authUser?.email]
   );
 
+  // Compute album progress locally (same formula as album & profile pages)
+  const collaboratorIdSet = useMemo(
+    () => new Set((collaborators ?? []).map((c) => c.id)),
+    [collaborators]
+  );
+  const validUnlockedCount = useMemo(
+    () => (myCards ?? []).filter((id) => collaboratorIdSet.has(id)).length,
+    [myCards, collaboratorIdSet]
+  );
+  const totalCollaborators = collaborators?.length ?? 0;
+  const albumProgressPct = Math.min(
+    100,
+    totalCollaborators > 0 ? Math.round((validUnlockedCount / totalCollaborators) * 100) : 0
+  );
+  // Effective rarity based on real current progress
+  const effectiveRarity =
+    albumProgressPct >= 100 ? "lendaria" :
+    albumProgressPct >= 75  ? "epica"    :
+    albumProgressPct >= 50  ? "rara"     : null;
+
   const [reward, setReward] = useState<{ card: Collaborator | null; bonusPoints: number } | null>(null);
   const [proofMissionId, setProofMissionId] = useState<string | null>(null);
   const [proofText, setProofText] = useState("");
   const [proofAttachments, setProofAttachments] = useState<Array<{ name: string; data: string }>>([]);
+  const [peerDialogMission, setPeerDialogMission] = useState<{ missionId: string; title: string; missionType: string } | null>(null);
+  const [challengeAnswers, setChallengeAnswers] = useState<Record<string, string>>({});
 
   // Group missions — album_percent auto-missions are always shown in "in progress" even without explicit start
   const canClaim   = missions?.filter((m) => m.started && !m.completed && m.submissionStatus === "in_progress" && m.progress >= m.goal && m.type !== "evidence") ?? [];
@@ -524,6 +595,66 @@ export default function MissionsPage() {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: getGetMyMissionsQueryKey() });
         toast({ title: `⚽ Missão iniciada: ${title}!` });
+      },
+    });
+  };
+
+  const handleStartPeerInteraction = (missionId: string, title: string, targetUserId: string) => {
+    startPeerInteraction.mutate({ missionId, targetUserId }, {
+      onSuccess: (data: any) => {
+        queryClient.invalidateQueries({ queryKey: getGetMyMissionsQueryKey() });
+        if (data?.completed) {
+          if (data?.rewardCard !== undefined) {
+            setReward({ card: data.rewardCard, bonusPoints: data.bonusPoints ?? 0 });
+          } else {
+            toast({ title: `🏆 Missão concluída: ${title}!` });
+          }
+        } else {
+          toast({ title: `🤝 Interação registrada: ${title}! Aguardando aprovação do admin.` });
+        }
+        setPeerDialogMission(null);
+      },
+      onError: (e: any) => {
+        toast({ title: e?.response?.data?.error ?? "Erro ao iniciar missão", variant: "destructive" });
+      },
+    });
+  };
+
+  const handleStartQuestionMission = (missionId: string, title: string, targetUserId: string, question: string, answer: string) => {
+    if (!question.trim() || !answer.trim()) {
+      toast({ title: "Preencha a pergunta e a resposta", variant: "destructive" });
+      return;
+    }
+    startQuestionMission.mutate({ missionId, targetUserId, question: question.trim(), answer: answer.trim() }, {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getGetMyMissionsQueryKey() });
+        toast({ title: `❓ Desafio criado: ${title}! Aguardando resposta do colega.` });
+        setPeerDialogMission(null);
+      },
+      onError: (e: any) => {
+        toast({ title: e?.response?.data?.error ?? "Erro ao iniciar missão", variant: "destructive" });
+      },
+    });
+  };
+
+  const handleAnswerChallenge = (userMissionId: string) => {
+    const answer = challengeAnswers[userMissionId]?.trim();
+    if (!answer) {
+      toast({ title: "Digite uma resposta", variant: "destructive" });
+      return;
+    }
+    answerChallenge.mutate({ userMissionId, answer }, {
+      onSuccess: (data: any) => {
+        queryClient.invalidateQueries({ queryKey: ["incomingChallenges"] });
+        if (data?.correct) {
+          toast({ title: "✅ Resposta correta! Seu colega foi recompensado." });
+        } else {
+          toast({ title: "❌ Resposta incorreta. Tente novamente!", variant: "destructive" });
+        }
+        setChallengeAnswers((prev) => ({ ...prev, [userMissionId]: "" }));
+      },
+      onError: (e: any) => {
+        toast({ title: e?.response?.data?.error ?? "Erro ao responder", variant: "destructive" });
       },
     });
   };
@@ -598,23 +729,23 @@ export default function MissionsPage() {
         ))}
       </div>
 
-      {/* Rarity progression banner */}
-      {myCollaborator && myCollaborator.rarity !== "comum" && RARITY_BANNER[myCollaborator.rarity] && (
+      {/* Rarity progression banner — based on real current album progress */}
+      {myCollaborator && effectiveRarity && RARITY_BANNER[effectiveRarity] && (
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
-          className={`bg-gradient-to-r ${RARITY_BANNER[myCollaborator.rarity]!.gradient} rounded-xl p-4 flex items-center gap-4`}
+          className={`bg-gradient-to-r ${RARITY_BANNER[effectiveRarity]!.gradient} rounded-xl p-4 flex items-center gap-4`}
         >
-          <span className="text-4xl">{RARITY_BANNER[myCollaborator.rarity]!.emoji}</span>
+          <span className="text-4xl">{RARITY_BANNER[effectiveRarity]!.emoji}</span>
           <div>
             <h3 className="font-black text-white text-sm">
               🎉 Parabéns, {myCollaborator.name.split(" ")[0]}!
             </h3>
             <p className="text-white/90 text-xs mt-0.5">
-              Sua figurinha evoluiu para <strong>{RARITY_BANNER[myCollaborator.rarity]!.label}!</strong>
+              Sua figurinha é <strong>{RARITY_BANNER[effectiveRarity]!.label}</strong> — {albumProgressPct}% do álbum
             </p>
             <p className="text-white/70 text-[11px] mt-0.5">
-              {RARITY_BANNER[myCollaborator.rarity]!.text}
+              {RARITY_BANNER[effectiveRarity]!.text}
             </p>
           </div>
         </motion.div>
@@ -751,14 +882,62 @@ export default function MissionsPage() {
               {notStarted.map((m, i) => (
                 <MissionCard key={m.missionId} mission={m} idx={i}
                   action={
-                    <Button size="sm" variant="outline" onClick={() => handleStart(m.missionId, m.title)}
-                      disabled={startMission.isPending}
-                      className="w-full text-xs"
-                    >
-                      {startMission.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <><Play className="w-3 h-3 mr-1" />Iniciar Missão</>}
-                    </Button>
+                    m.missionType === "peer_interaction" || m.missionType === "peer_question" ? (
+                      <Button size="sm" variant="outline"
+                        onClick={() => setPeerDialogMission({ missionId: m.missionId, title: m.title, missionType: m.missionType })}
+                        className="w-full text-xs"
+                      >
+                        {m.missionType === "peer_interaction"
+                          ? <><Handshake className="w-3 h-3 mr-1" />Escolher Colega</>
+                          : <><HelpCircle className="w-3 h-3 mr-1" />Criar Desafio</>}
+                      </Button>
+                    ) : (
+                      <Button size="sm" variant="outline" onClick={() => handleStart(m.missionId, m.title)}
+                        disabled={startMission.isPending}
+                        className="w-full text-xs"
+                      >
+                        {startMission.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <><Play className="w-3 h-3 mr-1" />Iniciar Missão</>}
+                      </Button>
+                    )
                   }
                 />
+              ))}
+            </Section>
+          )}
+
+          {/* ── Incoming challenges (peer_question, need to answer) ── */}
+          {incomingChallenges && incomingChallenges.length > 0 && (
+            <Section title="📨 Desafios Recebidos" color="text-purple-600">
+              {incomingChallenges.map((c, i) => (
+                <motion.div
+                  key={c.userMissionId}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: i * 0.04 }}
+                  className="bg-card border border-purple-200 bg-purple-50/30 rounded-xl p-4 space-y-3"
+                >
+                  <div>
+                    <h3 className="font-bold text-sm">{c.missionTitle}</h3>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      De: <span className="font-semibold text-foreground">{c.fromUserName}</span>
+                    </p>
+                    <p className="text-sm italic mt-1.5">"{c.question}"</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="Sua resposta..."
+                      value={challengeAnswers[c.userMissionId] ?? ""}
+                      onChange={(e) => setChallengeAnswers((prev) => ({ ...prev, [c.userMissionId]: e.target.value }))}
+                      onKeyDown={(e) => { if (e.key === "Enter") handleAnswerChallenge(c.userMissionId); }}
+                      className="text-sm"
+                    />
+                    <Button size="sm" onClick={() => handleAnswerChallenge(c.userMissionId)}
+                      disabled={answerChallenge.isPending}
+                    >
+                      {answerChallenge.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                    </Button>
+                  </div>
+                </motion.div>
               ))}
             </Section>
           )}
@@ -791,6 +970,117 @@ export default function MissionsPage() {
           onClose={() => setReward(null)}
         />
       )}
+
+      {/* Peer target / question dialog */}
+      {peerDialogMission && (
+        <PeerMissionDialog
+          mission={peerDialogMission}
+          users={(allUsers ?? []).filter((u) => u.id !== authUser?.id)}
+          isSubmitting={startPeerInteraction.isPending || startQuestionMission.isPending}
+          onClose={() => setPeerDialogMission(null)}
+          onSubmitPeerInteraction={(targetUserId) =>
+            handleStartPeerInteraction(peerDialogMission.missionId, peerDialogMission.title, targetUserId)
+          }
+          onSubmitQuestion={(targetUserId, question, answer) =>
+            handleStartQuestionMission(peerDialogMission.missionId, peerDialogMission.title, targetUserId, question, answer)
+          }
+        />
+      )}
     </div>
+  );
+}
+
+// ── Peer mission start dialog ────────────────────────────────────────────────
+function PeerMissionDialog({
+  mission,
+  users,
+  isSubmitting,
+  onClose,
+  onSubmitPeerInteraction,
+  onSubmitQuestion,
+}: {
+  mission: { missionId: string; title: string; missionType: string };
+  users: Array<{ id: string; name: string; email: string }>;
+  isSubmitting: boolean;
+  onClose: () => void;
+  onSubmitPeerInteraction: (targetUserId: string) => void;
+  onSubmitQuestion: (targetUserId: string, question: string, answer: string) => void;
+}) {
+  const [targetUserId, setTargetUserId] = useState("");
+  const [question, setQuestion] = useState("");
+  const [answer, setAnswer] = useState("");
+  const isQuestion = mission.missionType === "peer_question";
+
+  return (
+    <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent className="max-w-sm">
+        <DialogTitle className="flex items-center gap-2 text-base">
+          {isQuestion ? <HelpCircle className="w-4 h-4" /> : <Handshake className="w-4 h-4" />}
+          {mission.title}
+        </DialogTitle>
+        <div className="space-y-3 pt-1">
+          <div>
+            <label className="text-xs font-semibold text-muted-foreground mb-1 block">
+              Escolha um colega
+            </label>
+            <Select value={targetUserId} onValueChange={setTargetUserId}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Selecione um colega..." />
+              </SelectTrigger>
+              <SelectContent className="max-h-72 overflow-y-auto">
+                {users.map((u) => (
+                  <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {isQuestion && (
+            <>
+              <div>
+                <label className="text-xs font-semibold text-muted-foreground mb-1 block">
+                  Pergunta para o seu colega
+                </label>
+                <Textarea
+                  value={question}
+                  onChange={(e) => setQuestion(e.target.value)}
+                  placeholder="Ex: Qual é a capital do Brasil?"
+                  className="text-sm"
+                  rows={2}
+                />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-muted-foreground mb-1 block">
+                  Resposta correta
+                </label>
+                <Input
+                  value={answer}
+                  onChange={(e) => setAnswer(e.target.value)}
+                  placeholder="Ex: Brasília"
+                  className="text-sm"
+                />
+              </div>
+            </>
+          )}
+
+          <div className="flex gap-2 pt-1">
+            <Button variant="outline" className="flex-1" onClick={onClose} disabled={isSubmitting}>
+              Cancelar
+            </Button>
+            <Button
+              className="flex-1"
+              disabled={!targetUserId || isSubmitting || (isQuestion && (!question.trim() || !answer.trim()))}
+              onClick={() =>
+                isQuestion
+                  ? onSubmitQuestion(targetUserId, question, answer)
+                  : onSubmitPeerInteraction(targetUserId)
+              }
+            >
+              {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : "Confirmar"}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }

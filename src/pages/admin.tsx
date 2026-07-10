@@ -13,14 +13,21 @@ import {
   useUpdateMission,
   useDeleteMission,
   useListUsers,
+  useDeleteUser,
   useListPendingMissions,
   useApproveMission,
   useRejectMission,
+  useListCategorySettings,
+  useSetCategoryLocked,
   getListCollaboratorsQueryKey,
   getListMissionsQueryKey,
+  useGetAppSettings,
+  useUpdateAppSettings,
+  useRepairMissingPeerGifts,
   getListUsersQueryKey,
   getListPendingMissionsQueryKey,
   getGetMyMissionsQueryKey,
+  getListCategorySettingsQueryKey,
   type Collaborator,
   type Mission,
 } from "@/hooks/use-db";
@@ -31,6 +38,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -40,9 +48,13 @@ import { CollaboratorCard } from "@/components/cards/CollaboratorCard";
 import {
   ShieldAlert, Plus, Trash2, Edit2, Users, Target, Loader2, Star,
   Eye, Power, PowerOff, Lock, Unlock, X, Zap, Award, Clock,
-  CheckCircle2, XCircle, FileText, RefreshCw, Tags, PenLine
+  CheckCircle2, XCircle, FileText, RefreshCw, Tags, PenLine, ChevronsUpDown, Check
 } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Link } from "wouter";
+import { behaviorOptions } from "@/lib/constants";
+
 
 const RARITY_COLORS: Record<string, string> = {
   comum: "bg-gray-100 text-gray-700",
@@ -61,6 +73,7 @@ const collaboratorSchema = z.object({
   rarity: z.enum(["comum", "rara", "epica", "lendaria"]),
   category: z.string().min(1),
   points: z.coerce.number().min(0).default(10),
+  keyBehavior: z.enum(behaviorOptions).nullable().optional(),
   superPower: z.string().optional(),
   curiosity: z.string().optional(),
   achievement: z.string().optional(),
@@ -68,20 +81,46 @@ const collaboratorSchema = z.object({
   challengeAnswer: z.string().optional(),
   yearsAtVale: z.coerce.number().optional(),
   photoUrl: z.string().optional(),
+  backgroundUrl: z.string().optional(),
   isSpecial: z.boolean().default(false),
+});
+
+const specialCollaboratorSchema = z.object({
+  name: z.string().min(1),
+  rarity: z.enum(["comum", "rara", "epica", "lendaria"]),
+  category: z.string().min(1),
+  points: z.coerce.number().min(0).default(10),
+  superPower: z.string().optional(),
+  curiosity: z.string().optional(),
+  achievement: z.string().optional(),
+  challengeQuestion: z.string().optional(),
+  challengeAnswer: z.string().optional(),
+  photoUrl: z.string().optional(),
+  backgroundUrl: z.string().optional(),
+  hideCardName: z.boolean().default(false),
 });
 
 const missionSchema = z.object({
   title: z.string().min(1),
   description: z.string().min(1),
   goal: z.coerce.number().min(1),
-  rewardPoints: z.coerce.number().min(1),
+  rewardPoints: z.coerce.number().min(0).default(50),
   missionType: z.string().min(1),
   type: z.enum(["auto", "peer", "evidence"]).default("auto"),
   requiresApproval: z.boolean().default(false),
+  rewardMode: z.enum(["random", "specific", "points_only"]).default("random"),
+  specificCardId: z.string().optional(),
+  // peer_question dual rewards
+  challengerRewardPoints: z.coerce.number().min(0).default(50).optional(),
+  challengerRewardMode: z.enum(["random", "specific", "points_only"]).default("random").optional(),
+  challengerSpecificCardId: z.string().optional(),
+  challengedRewardPoints: z.coerce.number().min(0).default(50).optional(),
+  challengedRewardMode: z.enum(["random", "specific", "points_only"]).default("random").optional(),
+  challengedSpecificCardId: z.string().optional(),
 });
 
 type CollaboratorForm = z.infer<typeof collaboratorSchema>;
+type SpecialCollaboratorForm = z.infer<typeof specialCollaboratorSchema>;
 type MissionForm = z.infer<typeof missionSchema>;
 
 export default function AdminPage() {
@@ -148,12 +187,32 @@ function CollaboratorsTab() {
   const createCollaborator = useCreateCollaborator();
   const updateCollaborator = useUpdateCollaborator();
   const deleteCollaborator = useDeleteCollaborator();
+  const { data: categorySettings } = useListCategorySettings();
+  const setCategoryLocked = useSetCategoryLocked();
 
   const [createOpen, setCreateOpen] = useState(false);
+  const [createSpecialOpen, setCreateSpecialOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<Collaborator | null>(null);
+  const [editSpecialTarget, setEditSpecialTarget] = useState<Collaborator | null>(null);
   const [previewTarget, setPreviewTarget] = useState<Collaborator | null>(null);
   const [manageCatsOpen, setManageCatsOpen] = useState(false);
   const [newCatInput, setNewCatInput] = useState("");
+
+  const lockedCategories = useMemo(
+    () => new Set((categorySettings ?? []).filter((c) => c.locked).map((c) => c.name)),
+    [categorySettings]
+  );
+
+  const handleToggleCategoryLock = (cat: string) => {
+    const isLocked = lockedCategories.has(cat);
+    setCategoryLocked.mutate({ name: cat, locked: !isLocked }, {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getListCategorySettingsQueryKey() });
+        toast({ title: isLocked ? `🔓 Categoria "${cat}" desbloqueada!` : `🔒 Categoria "${cat}" bloqueada` });
+      },
+      onError: () => toast({ title: "Erro ao atualizar categoria", variant: "destructive" }),
+    });
+  };
 
   const [extraCategories, setExtraCategories] = useState<string[]>(() => {
     try { return JSON.parse(localStorage.getItem("fl-extra-categories") ?? "[]"); } catch { return []; }
@@ -183,7 +242,7 @@ function CollaboratorsTab() {
   const firstCategory = allCategories[0] ?? "";
   const defaultValues: CollaboratorForm = {
     name: "", role: "", area: "", management: "", email: "", position: "",
-    rarity: "comum", category: firstCategory, points: 10, isSpecial: false,
+    rarity: "comum", category: firstCategory, points: 10, isSpecial: false, keyBehavior: undefined,
     superPower: "", curiosity: "", achievement: "",
     challengeQuestion: "", challengeAnswer: "", photoUrl: "",
     yearsAtVale: undefined,
@@ -197,6 +256,7 @@ function CollaboratorsTab() {
       ...data,
       email: data.email || null,
       photoUrl: data.photoUrl ?? null,
+      backgroundUrl: data.backgroundUrl || null,
       superPower: data.superPower ?? null,
       curiosity: data.curiosity ?? null,
       achievement: data.achievement ?? null,
@@ -221,6 +281,7 @@ function CollaboratorsTab() {
       ...data,
       email: data.email || null,
       photoUrl: data.photoUrl ?? null,
+      backgroundUrl: data.backgroundUrl || null,
       superPower: data.superPower ?? null,
       curiosity: data.curiosity ?? null,
       achievement: data.achievement ?? null,
@@ -238,28 +299,123 @@ function CollaboratorsTab() {
     });
   });
 
-  const openEdit = (c: Collaborator) => {
-    editForm.reset({
-      name: c.name,
-      role: c.role,
-      area: c.area,
-      management: c.management,
-      email: c.email ?? "",
-      rarity: c.rarity as CollaboratorForm["rarity"],
-      category: c.category,
-      points: c.points,
-      isSpecial: c.isSpecial,
-      superPower: c.superPower ?? "",
-      curiosity: c.curiosity ?? "",
-      achievement: c.achievement ?? "",
-      challengeQuestion: c.challengeQuestion ?? "",
-      challengeAnswer: c.challengeAnswer ?? "",
-      yearsAtVale: c.yearsAtVale ?? undefined,
-      photoUrl: c.photoUrl ?? "",
-      position: c.position ?? "",
-    });
-    setEditTarget(c);
+  const specialDefaultValues: SpecialCollaboratorForm = {
+    name: "", rarity: "lendaria", category: firstCategory, points: 20,
+    superPower: "", curiosity: "", achievement: "",
+    challengeQuestion: "", challengeAnswer: "", photoUrl: "", backgroundUrl: "",
+    hideCardName: false,
   };
+  const createSpecialForm = useForm<SpecialCollaboratorForm>({ resolver: zodResolver(specialCollaboratorSchema), defaultValues: specialDefaultValues });
+  const editSpecialForm = useForm<SpecialCollaboratorForm>({ resolver: zodResolver(specialCollaboratorSchema), defaultValues: specialDefaultValues });
+
+  const handleCreateSpecial = createSpecialForm.handleSubmit((data) => {
+    createCollaborator.mutate({ data: {
+      name: data.name,
+      role: "Figurinha Especial",
+      area: "",
+      management: "",
+      email: null,
+      position: null,
+      rarity: data.rarity,
+      category: data.category,
+      points: data.points,
+      isSpecial: true,
+      keyBehavior: null,
+      superPower: data.superPower ?? null,
+      curiosity: data.curiosity ?? null,
+      achievement: data.achievement ?? null,
+      challengeQuestion: data.challengeQuestion ?? null,
+      challengeAnswer: data.challengeAnswer ?? null,
+      photoUrl: data.photoUrl ?? null,
+      backgroundUrl: data.backgroundUrl || null,
+      yearsAtVale: null,
+      hideCardName: data.hideCardName ?? false,
+    }}, {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getListCollaboratorsQueryKey() });
+        toast({ title: "✅ Figurinha especial criada!" });
+        createSpecialForm.reset(specialDefaultValues);
+        setCreateSpecialOpen(false);
+      },
+      onError: () => toast({ title: "Erro ao criar", variant: "destructive" }),
+    });
+  });
+
+  const openEdit = (c: Collaborator) => {
+    if (c.isSpecial) {
+      editSpecialForm.reset({
+        name: c.name,
+        rarity: c.rarity as SpecialCollaboratorForm["rarity"],
+        category: c.category,
+        points: c.points,
+        superPower: c.superPower ?? "",
+        curiosity: c.curiosity ?? "",
+        achievement: c.achievement ?? "",
+        challengeQuestion: c.challengeQuestion ?? "",
+        challengeAnswer: c.challengeAnswer ?? "",
+        photoUrl: c.photoUrl ?? "",
+        backgroundUrl: c.backgroundUrl ?? "",
+        hideCardName: c.hideCardName ?? false,
+      });
+      setEditSpecialTarget(c);
+    } else {
+      editForm.reset({
+        name: c.name,
+        role: c.role,
+        area: c.area,
+        management: c.management,
+        email: c.email ?? "",
+        rarity: c.rarity as CollaboratorForm["rarity"],
+        category: c.category,
+        points: c.points,
+        isSpecial: c.isSpecial,
+        keyBehavior: c.keyBehavior ?? undefined,
+        superPower: c.superPower ?? "",
+        curiosity: c.curiosity ?? "",
+        achievement: c.achievement ?? "",
+        challengeQuestion: c.challengeQuestion ?? "",
+        challengeAnswer: c.challengeAnswer ?? "",
+        yearsAtVale: c.yearsAtVale ?? undefined,
+        photoUrl: c.photoUrl ?? "",
+        backgroundUrl: c.backgroundUrl ?? "",
+        position: c.position ?? "",
+      });
+      setEditTarget(c);
+    }
+  };
+
+  const handleEditSpecial = editSpecialForm.handleSubmit((data) => {
+    if (!editSpecialTarget) return;
+    updateCollaborator.mutate({ id: editSpecialTarget.id, data: {
+      name: data.name,
+      role: "Figurinha Especial",
+      area: "",
+      management: "",
+      email: null,
+      position: null,
+      rarity: data.rarity,
+      category: data.category,
+      points: data.points,
+      isSpecial: true,
+      keyBehavior: null,
+      superPower: data.superPower ?? null,
+      curiosity: data.curiosity ?? null,
+      achievement: data.achievement ?? null,
+      challengeQuestion: data.challengeQuestion ?? null,
+      challengeAnswer: data.challengeAnswer ?? null,
+      photoUrl: data.photoUrl ?? null,
+      backgroundUrl: data.backgroundUrl || null,
+      yearsAtVale: null,
+      hideCardName: data.hideCardName ?? false,
+    }}, {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getListCollaboratorsQueryKey() });
+        toast({ title: "✅ Figurinha especial atualizada!" });
+        setEditSpecialTarget(null);
+      },
+      onError: () => toast({ title: "Erro ao editar", variant: "destructive" }),
+    });
+  });
 
   const handleDelete = (id: string, name: string) => {
     if (!confirm(`Excluir figurinha "${name}"? Esta ação não pode ser desfeita.`)) return;
@@ -287,15 +443,28 @@ function CollaboratorsTab() {
               <DialogHeader><DialogTitle>Gerenciar Categorias</DialogTitle></DialogHeader>
               <div className="space-y-4">
                 <p className="text-xs text-muted-foreground">Categorias ativas no álbum. As categorias dos colaboradores existentes são detectadas automaticamente.</p>
+                <p className="text-xs text-muted-foreground">
+                  Categorias bloqueadas ficam visíveis no álbum (gerando curiosidade) mas as figurinhas não podem ser desbloqueadas até o admin liberar.
+                </p>
                 <div className="space-y-1 max-h-52 overflow-y-auto">
                   {allCategories.map((cat) => {
                     const isFromDB = collaborators?.some((c) => c.category === cat);
                     const isExtra = extraCategories.includes(cat);
+                    const isLocked = lockedCategories.has(cat);
                     return (
                       <div key={cat} className="flex items-center justify-between px-3 py-2 rounded-lg bg-muted/50">
                         <span className="text-sm font-medium">{cat}</span>
                         <div className="flex items-center gap-1.5">
                           {isFromDB && <span className="text-[10px] text-muted-foreground">em uso</span>}
+                          <Button
+                            size="icon" variant="ghost"
+                            className={`h-6 w-6 ${isLocked ? "text-orange-600 hover:text-orange-700" : "text-green-600 hover:text-green-700"}`}
+                            title={isLocked ? "Desbloquear categoria" : "Bloquear categoria"}
+                            onClick={() => handleToggleCategoryLock(cat)}
+                            disabled={setCategoryLocked.isPending}
+                          >
+                            {isLocked ? <Lock className="w-3.5 h-3.5" /> : <Unlock className="w-3.5 h-3.5" />}
+                          </Button>
                           {isExtra && !isFromDB && (
                             <Button size="icon" variant="ghost" className="h-6 w-6 text-destructive hover:text-destructive"
                               onClick={() => handleRemoveCategory(cat)}>
@@ -340,80 +509,130 @@ function CollaboratorsTab() {
               />
             </DialogContent>
           </Dialog>
+
+          <Dialog open={createSpecialOpen} onOpenChange={setCreateSpecialOpen}>
+            <DialogTrigger asChild>
+              <Button size="sm" variant="outline" data-testid="button-new-special-collaborator">
+                <Star className="w-4 h-4 mr-1" /> Figurinha Especial
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+              <DialogHeader><DialogTitle>⭐ Nova Figurinha Especial</DialogTitle></DialogHeader>
+              <SpecialCollaboratorFormFields
+                form={createSpecialForm}
+                onSubmit={handleCreateSpecial}
+                isPending={createCollaborator.isPending}
+                submitLabel="Criar Figurinha Especial"
+                categories={allCategories}
+              />
+            </DialogContent>
+          </Dialog>
         </div>
       </div>
 
       {isLoading ? (
         <div className="space-y-2">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-14 rounded-lg" />)}</div>
       ) : (
-        <div className="bg-card border border-border rounded-xl overflow-hidden">
-          <div className="divide-y divide-border">
-            {collaborators?.map((c) => (
-              <motion.div
-                key={c.id}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="flex items-center gap-3 px-4 py-3 hover:bg-muted/40 transition-colors"
-                data-testid={`admin-collab-${c.id}`}
-              >
-                <div className="w-10 h-10 rounded-lg bg-muted overflow-hidden flex-shrink-0 flex items-center justify-center">
-                  {c.photoUrl ? (
-                    <img src={c.photoUrl} alt={c.name} className="w-full h-full object-cover" />
-                  ) : (
-                    <span className="text-lg">👤</span>
-                  )}
+        <div className="space-y-4">
+          {(() => {
+            if (!collaborators || collaborators.length === 0) {
+              return (
+                <div className="bg-card border border-border rounded-xl text-center py-12 text-muted-foreground text-sm">
+                  <div className="text-3xl mb-2">🎴</div>
+                  Nenhuma figurinha cadastrada
                 </div>
+              );
+            }
+            // Agrupar por categoria
+            const byCategory = new Map<string, Collaborator[]>();
+            for (const c of collaborators) {
+              const cat = c.isSpecial ? "⭐ Especiais" : (c.category || "Sem categoria");
+              if (!byCategory.has(cat)) byCategory.set(cat, []);
+              byCategory.get(cat)!.push(c);
+            }
+            // Ordenar categorias: Especiais primeiro, depois alfabético
+            const sortedCats = [...byCategory.keys()].sort((a, b) => {
+              if (a === "⭐ Especiais") return -1;
+              if (b === "⭐ Especiais") return 1;
+              return a.localeCompare(b, "pt-BR");
+            });
 
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <p className="font-semibold text-sm truncate">{c.name}</p>
-                    {c.isSpecial && <span className="text-xs">⭐</span>}
+            return sortedCats.map((cat) => (
+              <div key={cat}>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">{cat}</span>
+                  <span className="text-xs text-muted-foreground">({byCategory.get(cat)!.length})</span>
+                  <div className="flex-1 h-px bg-border" />
+                </div>
+                <div className="bg-card border border-border rounded-xl overflow-hidden">
+                  <div className="divide-y divide-border">
+                    {byCategory.get(cat)!.map((c) => (
+                      <motion.div
+                        key={c.id}
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        className="flex items-center gap-3 px-4 py-3 hover:bg-muted/40 transition-colors"
+                        data-testid={`admin-collab-${c.id}`}
+                      >
+                        <div className="w-10 h-10 rounded-lg bg-muted overflow-hidden flex-shrink-0 flex items-center justify-center">
+                          {c.photoUrl ? (
+                            <img src={c.photoUrl} alt={c.name} className="w-full h-full object-cover" />
+                          ) : (
+                            <span className="text-lg">{c.isSpecial ? "⭐" : "👤"}</span>
+                          )}
+                        </div>
+
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <p className="font-semibold text-sm truncate">{c.name}</p>
+                            {c.isSpecial && <span className="text-xs">⭐</span>}
+                            {c.hideCardName && <span className="text-[10px] text-muted-foreground bg-muted px-1 rounded">sem nome</span>}
+                          </div>
+                          <p className="text-xs text-muted-foreground truncate">
+                            {c.isSpecial ? "Figurinha Especial" : `${c.role} — ${c.area}`}
+                          </p>
+                        </div>
+
+                        <Badge className={`text-xs flex-shrink-0 border-0 ${RARITY_COLORS[c.rarity] ?? ""}`}>
+                          {c.rarity}
+                        </Badge>
+
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          <Button
+                            variant="ghost" size="icon"
+                            className="text-primary hover:text-primary h-8 w-8"
+                            title="Prévia"
+                            onClick={() => setPreviewTarget(c)}
+                            data-testid={`button-preview-collab-${c.id}`}
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                          </Button>
+                          <Button
+                            variant="ghost" size="icon"
+                            className="text-muted-foreground hover:text-foreground h-8 w-8"
+                            title="Editar"
+                            onClick={() => openEdit(c)}
+                            data-testid={`button-edit-collab-${c.id}`}
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </Button>
+                          <Button
+                            variant="ghost" size="icon"
+                            className="text-destructive hover:text-destructive h-8 w-8"
+                            title="Excluir"
+                            onClick={() => handleDelete(c.id, c.name)}
+                            data-testid={`button-delete-collab-${c.id}`}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                        </div>
+                      </motion.div>
+                    ))}
                   </div>
-                  <p className="text-xs text-muted-foreground truncate">{c.role} — {c.area}</p>
                 </div>
-
-                <Badge className={`text-xs flex-shrink-0 border-0 ${RARITY_COLORS[c.rarity] ?? ""}`}>
-                  {c.rarity}
-                </Badge>
-
-                <div className="flex items-center gap-1 flex-shrink-0">
-                  <Button
-                    variant="ghost" size="icon"
-                    className="text-primary hover:text-primary h-8 w-8"
-                    title="Prévia"
-                    onClick={() => setPreviewTarget(c)}
-                    data-testid={`button-preview-collab-${c.id}`}
-                  >
-                    <Eye className="w-3.5 h-3.5" />
-                  </Button>
-                  <Button
-                    variant="ghost" size="icon"
-                    className="text-muted-foreground hover:text-foreground h-8 w-8"
-                    title="Editar"
-                    onClick={() => openEdit(c)}
-                    data-testid={`button-edit-collab-${c.id}`}
-                  >
-                    <Edit2 className="w-3.5 h-3.5" />
-                  </Button>
-                  <Button
-                    variant="ghost" size="icon"
-                    className="text-destructive hover:text-destructive h-8 w-8"
-                    title="Excluir"
-                    onClick={() => handleDelete(c.id, c.name)}
-                    data-testid={`button-delete-collab-${c.id}`}
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </Button>
-                </div>
-              </motion.div>
-            ))}
-            {(!collaborators || collaborators.length === 0) && (
-              <div className="text-center py-12 text-muted-foreground text-sm">
-                <div className="text-3xl mb-2">🎴</div>
-                Nenhuma figurinha cadastrada
               </div>
-            )}
-          </div>
+            ));
+          })()}
         </div>
       )}
 
@@ -425,6 +644,21 @@ function CollaboratorsTab() {
           <CollaboratorFormFields
             form={editForm}
             onSubmit={handleEdit}
+            isPending={updateCollaborator.isPending}
+            submitLabel="Salvar Alterações"
+            categories={allCategories}
+          />
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!editSpecialTarget} onOpenChange={(open) => { if (!open) setEditSpecialTarget(null); }}>
+        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>⭐ Editar Especial: {editSpecialTarget?.name}</DialogTitle>
+          </DialogHeader>
+          <SpecialCollaboratorFormFields
+            form={editSpecialForm}
+            onSubmit={handleEditSpecial}
             isPending={updateCollaborator.isPending}
             submitLabel="Salvar Alterações"
             categories={allCategories}
@@ -513,17 +747,93 @@ function PhotoPickerField({ value, onChange }: { value: string; onChange: (v: st
           reader.readAsDataURL(file);
         }}
       />
-      <button
-        type="button"
-        onClick={() => fileRef.current?.click()}
-        className="flex items-center gap-2 px-3 py-2 border border-input rounded-md text-sm text-muted-foreground hover:bg-muted/50 transition-colors w-full text-left"
-      >
-        {value ? "✅ Imagem selecionada — clique para trocar" : "Selecionar imagem do dispositivo..."}
-      </button>
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={() => fileRef.current?.click()}
+          className="flex-1 flex items-center gap-2 px-3 py-2 border border-input rounded-md text-sm text-muted-foreground hover:bg-muted/50 transition-colors text-left"
+        >
+          {value ? "✅ Imagem selecionada — clique para trocar" : "Selecionar imagem do dispositivo..."}
+        </button>
+        {value && (
+          <button
+            type="button"
+            onClick={() => { onChange(""); if (fileRef.current) fileRef.current.value = ""; }}
+            className="flex items-center px-2 py-2 border border-destructive/40 rounded-md text-destructive hover:bg-destructive/10 transition-colors"
+            title="Remover imagem"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        )}
+      </div>
       {value && (
         <img src={value} alt="Prévia" className="w-16 h-16 rounded-lg object-cover border border-border" />
       )}
     </div>
+  );
+}
+
+// ─── Searchable collaborator combobox ─────────────────────────────────────────
+function CollaboratorCombobox({
+  value,
+  onChange,
+  collaborators,
+  placeholder = "Selecione a figurinha...",
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  collaborators: Collaborator[] | undefined;
+  placeholder?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const selected = collaborators?.find((c) => c.id === value);
+  const filtered = (collaborators ?? []).filter((c) =>
+    `${c.name} ${c.category}`.toLowerCase().includes(search.toLowerCase())
+  );
+  return (
+    <Popover open={open} onOpenChange={(o) => { setOpen(o); if (!o) setSearch(""); }}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="flex w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm text-left hover:bg-muted/50 transition-colors"
+        >
+          <span className={selected ? "text-foreground" : "text-muted-foreground"}>
+            {selected ? `${selected.name} (${selected.category})` : placeholder}
+          </span>
+          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[320px] p-0" align="start">
+        <Command shouldFilter={false}>
+          <CommandInput
+            placeholder="Buscar por nome ou categoria..."
+            value={search}
+            onValueChange={setSearch}
+          />
+          <CommandList>
+            <CommandEmpty>Nenhuma figurinha encontrada.</CommandEmpty>
+            <CommandGroup>
+              {filtered.map((c) => (
+                <CommandItem
+                  key={c.id}
+                  value={c.id}
+                  onSelect={() => {
+                    onChange(c.id);
+                    setOpen(false);
+                    setSearch("");
+                  }}
+                >
+                  <Check className={`mr-2 h-4 w-4 ${value === c.id ? "opacity-100" : "opacity-0"}`} />
+                  <span className="flex-1 truncate">{c.name}</span>
+                  <span className="ml-2 text-xs text-muted-foreground shrink-0">{c.category}</span>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
   );
 }
 
@@ -539,6 +849,7 @@ function CollaboratorFormFields({
 }) {
   const [isCustomCategory, setIsCustomCategory] = useState(false);
   const challengeQuestion = useWatch({ control: form.control, name: "challengeQuestion" });
+  const isSpecial = useWatch({ control: form.control, name: "isSpecial" });
 
   return (
     <Form {...form}>
@@ -645,7 +956,30 @@ function CollaboratorFormFields({
             <FormItem><FormLabel>Anos na Vale</FormLabel><FormControl><Input type="number" {...field} /></FormControl></FormItem>
           )} />
         </div>
+        <FormField
+          control={form.control}
+          name="keyBehavior"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>🎯 Comportamento Chave</FormLabel>
+              <Select onValueChange={field.onChange} value={field.value || undefined}>
+                <FormControl>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecionar comportamento..." />
+                  </SelectTrigger>
+                </FormControl>
 
+                <SelectContent>
+                  {behaviorOptions.map((option) => (
+                    <SelectItem key={option} value={option}>
+                      {option}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </FormItem>
+          )}
+        />
         <FormField control={form.control} name="photoUrl" render={({ field }) => (
           <FormItem>
             <FormLabel>📷 Foto</FormLabel>
@@ -703,6 +1037,149 @@ function CollaboratorFormFields({
           </FormItem>
         )} />
 
+        {isSpecial && (
+          <FormField control={form.control} name="backgroundUrl" render={({ field }) => (
+            <FormItem>
+              <FormLabel>🖼️ Imagem de fundo (figurinha especial)</FormLabel>
+              <FormControl>
+                <PhotoPickerField value={field.value ?? ""} onChange={field.onChange} />
+              </FormControl>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                Se vazio, usa o fundo padrão da raridade selecionada.
+              </p>
+            </FormItem>
+          )} />
+        )}
+
+        <Button type="submit" className="w-full" disabled={isPending}>
+          {isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+          {submitLabel}
+        </Button>
+      </form>
+    </Form>
+  );
+}
+
+// ─── Special collaborator form ────────────────────────────────────────────────
+function SpecialCollaboratorFormFields({
+  form, onSubmit, isPending, submitLabel, categories
+}: {
+  form: ReturnType<typeof useForm<SpecialCollaboratorForm>>;
+  onSubmit: (e: React.FormEvent) => void;
+  isPending: boolean;
+  submitLabel: string;
+  categories: string[];
+}) {
+  const challengeQuestion = useWatch({ control: form.control, name: "challengeQuestion" });
+
+  return (
+    <Form {...form}>
+      <form onSubmit={onSubmit} className="space-y-3">
+        <p className="text-xs text-muted-foreground bg-primary/5 rounded-lg px-3 py-2">
+          Figurinhas especiais não pertencem a um colaborador — sem cargo, área, gerência ou email.
+        </p>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="col-span-2">
+            <FormField control={form.control} name="name" render={({ field }) => (
+              <FormItem><FormLabel>Nome *</FormLabel><FormControl><Input {...field} data-testid="input-special-name" /></FormControl></FormItem>
+            )} />
+          </div>
+          <FormField control={form.control} name="rarity" render={({ field }) => (
+            <FormItem>
+              <FormLabel>Raridade *</FormLabel>
+              <Select onValueChange={field.onChange} value={field.value}>
+                <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
+                <SelectContent>
+                  <SelectItem value="comum">⚪ Comum</SelectItem>
+                  <SelectItem value="rara">🔵 Rara</SelectItem>
+                  <SelectItem value="epica">🟣 Épica</SelectItem>
+                  <SelectItem value="lendaria">🟡 Lendária</SelectItem>
+                </SelectContent>
+              </Select>
+            </FormItem>
+          )} />
+          <FormField control={form.control} name="category" render={({ field }) => (
+            <FormItem>
+              <FormLabel>Categoria *</FormLabel>
+              <Select onValueChange={field.onChange} value={field.value}>
+                <FormControl><SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger></FormControl>
+                <SelectContent>
+                  {categories.map((cat) => (
+                    <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </FormItem>
+          )} />
+          <FormField control={form.control} name="points" render={({ field }) => (
+            <FormItem><FormLabel>Pontos</FormLabel><FormControl><Input type="number" {...field} /></FormControl></FormItem>
+          )} />
+        </div>
+        <FormField control={form.control} name="photoUrl" render={({ field }) => (
+          <FormItem>
+            <FormLabel>📷 Foto</FormLabel>
+            <FormControl>
+              <PhotoPickerField value={field.value ?? ""} onChange={field.onChange} />
+            </FormControl>
+          </FormItem>
+        )} />
+        <FormField control={form.control} name="backgroundUrl" render={({ field }) => (
+          <FormItem>
+            <FormLabel>🖼️ Imagem de fundo</FormLabel>
+            <FormControl>
+              <PhotoPickerField value={field.value ?? ""} onChange={field.onChange} />
+            </FormControl>
+            <p className="text-[11px] text-muted-foreground mt-0.5">
+              Se vazio, usa o fundo padrão da raridade selecionada.
+            </p>
+          </FormItem>
+        )} />
+        <FormField control={form.control} name="superPower" render={({ field }) => (
+          <FormItem><FormLabel>⚡ Super Poder</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>
+        )} />
+        <FormField control={form.control} name="challengeQuestion" render={({ field: qField }) => (
+          <FormItem>
+            <FormLabel>❓ Pergunta do Desafio</FormLabel>
+            <FormControl>
+              <Input
+                {...qField}
+                placeholder="Pergunta para desbloquear esta figurinha (deixe vazio para usar a padrão)"
+              />
+            </FormControl>
+          </FormItem>
+        )} />
+        {!!challengeQuestion?.trim() && (
+          <FormField control={form.control} name="challengeAnswer" render={({ field }) => (
+            <FormItem>
+              <FormLabel>✅ Resposta da Pergunta do Desafio <span className="text-destructive">*</span></FormLabel>
+              <FormControl>
+                <Input
+                  {...field}
+                  placeholder="Resposta correta para a pergunta acima..."
+                />
+              </FormControl>
+            </FormItem>
+          )} />
+        )}
+        <FormField control={form.control} name="curiosity" render={({ field }) => (
+          <FormItem><FormLabel>💡 Curiosidade</FormLabel><FormControl><Textarea {...field} rows={2} /></FormControl></FormItem>
+        )} />
+        <FormField control={form.control} name="achievement" render={({ field }) => (
+          <FormItem><FormLabel>🏆 Conquista</FormLabel><FormControl><Textarea {...field} rows={2} /></FormControl></FormItem>
+        )} />
+
+        <FormField control={form.control} name="hideCardName" render={({ field }) => (
+          <FormItem className="flex items-center gap-2 space-y-0 bg-muted/40 rounded-lg px-3 py-2">
+            <FormControl>
+              <input type="checkbox" checked={field.value ?? false} onChange={field.onChange} className="w-4 h-4 rounded" />
+            </FormControl>
+            <div>
+              <FormLabel className="font-normal cursor-pointer">🏷️ Ocultar nome na figurinha</FormLabel>
+              <p className="text-[11px] text-muted-foreground">Quando marcado, o banner com o nome não aparece sobre a imagem da figurinha.</p>
+            </div>
+          </FormItem>
+        )} />
+
         <Button type="submit" className="w-full" disabled={isPending}>
           {isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
           {submitLabel}
@@ -713,6 +1190,76 @@ function CollaboratorFormFields({
 }
 
 // ─── Missions Tab ─────────────────────────────────────────────────────────────
+function DuplicateDonationSettings() {
+  const { data: settings } = useGetAppSettings();
+  const updateSettings = useUpdateAppSettings();
+  const { toast } = useToast();
+  const [points, setPoints] = useState<number | null>(null);
+
+  const value = points ?? settings?.duplicateDonationPoints ?? 10;
+
+  const handleSave = () => {
+    updateSettings.mutate({ duplicateDonationPoints: value }, {
+      onSuccess: () => toast({ title: "✅ Configuração salva!" }),
+      onError: () => toast({ title: "Erro ao salvar configuração", variant: "destructive" }),
+    });
+  };
+
+  return (
+    <div className="bg-card border border-border rounded-xl p-4 flex items-center gap-3 flex-wrap">
+      <div className="flex-1 min-w-[220px]">
+        <p className="font-semibold text-sm">🔁 Doação de figurinha repetida</p>
+        <p className="text-xs text-muted-foreground">Pontos ganhos por quem doa uma figurinha repetida a outro participante.</p>
+      </div>
+      <Input
+        type="number"
+        min={0}
+        className="w-24"
+        value={value}
+        onChange={(e) => setPoints(Number(e.target.value))}
+      />
+      <Button size="sm" onClick={handleSave} disabled={updateSettings.isPending}>
+        {updateSettings.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Salvar"}
+      </Button>
+    </div>
+  );
+}
+
+function RepairPeerGiftsButton() {
+  const repair = useRepairMissingPeerGifts();
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  const handleRepair = () => {
+    repair.mutate(undefined, {
+      onSuccess: (data) => {
+        queryClient.invalidateQueries();
+        toast({
+          title: data.repaired > 0
+            ? `✅ ${data.repaired} presente(s) corrigido(s)!`
+            : "Nenhum presente pendente de correção encontrado.",
+        });
+      },
+      onError: () => toast({ title: "Erro ao corrigir presentes", variant: "destructive" }),
+    });
+  };
+
+  return (
+    <div className="bg-card border border-border rounded-xl p-4 flex items-center gap-3 flex-wrap">
+      <div className="flex-1 min-w-[220px]">
+        <p className="font-semibold text-sm">🛠️ Corrigir presentes de interação antigos</p>
+        <p className="text-xs text-muted-foreground">
+          Missões de interação aprovadas antes da correção podem não ter gerado a figurinha nem a atividade
+          quando o destinatário já possuía a figurinha. Use este botão para conceder retroativamente o que faltou.
+        </p>
+      </div>
+      <Button size="sm" variant="outline" onClick={handleRepair} disabled={repair.isPending}>
+        {repair.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Corrigir agora"}
+      </Button>
+    </div>
+  );
+}
+
 function MissionsTab() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -723,8 +1270,38 @@ function MissionsTab() {
 
   const [createOpen, setCreateOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<Mission | null>(null);
+  const [seedingDefaults, setSeedingDefaults] = useState(false);
 
-  const defaultValues: MissionForm = { title: "", description: "", goal: 1, rewardPoints: 50, missionType: "unlock_cards", type: "auto", requiresApproval: false };
+  const defaultValues: MissionForm = { title: "", description: "", goal: 1, rewardPoints: 50, missionType: "unlock_cards", type: "auto", requiresApproval: false, rewardMode: "random", specificCardId: "" };
+
+  const DEFAULT_ALBUM_MISSIONS = [
+    { title: "Rumo à Final", description: "Complete 80% do álbum para ganhar uma figurinha especial!", goal: 80, rewardPoints: 200, missionType: "album_percent", type: "auto" as const, requiresApproval: false, status: "open" as const },
+    { title: "Campeão dos Legends", description: "Complete 100% do álbum e se torne um verdadeiro Legends!", goal: 100, rewardPoints: 500, missionType: "album_percent", type: "auto" as const, requiresApproval: false, status: "open" as const },
+  ];
+
+  const handleSeedDefaultMissions = async () => {
+    const existingGoals = new Set(
+      (missions ?? []).filter((m) => m.missionType === "album_percent").map((m) => m.goal)
+    );
+    const toCreate = DEFAULT_ALBUM_MISSIONS.filter((m) => !existingGoals.has(m.goal));
+    if (toCreate.length === 0) {
+      toast({ title: "Missões de progresso já existem!" });
+      return;
+    }
+    setSeedingDefaults(true);
+    try {
+      for (const m of toCreate) {
+        await createMission.mutateAsync({ data: m });
+      }
+      queryClient.invalidateQueries({ queryKey: getListMissionsQueryKey() });
+      toast({ title: `✅ ${toCreate.length} missão(ões) de progresso criada(s)!` });
+    } catch {
+      toast({ title: "Erro ao criar missões padrão", variant: "destructive" });
+    } finally {
+      setSeedingDefaults(false);
+    }
+  };
+
   const createForm = useForm<MissionForm>({ resolver: zodResolver(missionSchema), defaultValues });
   const editForm = useForm<MissionForm>({ resolver: zodResolver(missionSchema), defaultValues });
 
@@ -761,6 +1338,14 @@ function MissionsTab() {
       missionType: m.missionType ?? "unlock_cards",
       type: (m.type ?? "auto") as MissionForm["type"],
       requiresApproval: m.requiresApproval ?? false,
+      rewardMode: m.rewardMode ?? "random",
+      specificCardId: m.specificCardId ?? "",
+      challengerRewardPoints: m.challengerRewardPoints ?? 50,
+      challengerRewardMode: m.challengerRewardMode ?? "random",
+      challengerSpecificCardId: m.challengerSpecificCardId ?? "",
+      challengedRewardPoints: m.challengedRewardPoints ?? 50,
+      challengedRewardMode: m.challengedRewardMode ?? "points_only",
+      challengedSpecificCardId: m.challengedSpecificCardId ?? "",
     });
     setEditTarget(m);
   };
@@ -805,7 +1390,18 @@ function MissionsTab() {
             {closedMissions.length} encerradas
           </span>
         </div>
-        <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={handleSeedDefaultMissions}
+            disabled={seedingDefaults || isLoading}
+            title="Cria automaticamente as missões de progresso do álbum (80% e 100%)"
+          >
+            {seedingDefaults ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <span className="mr-1">📊</span>}
+            Missões padrão
+          </Button>
+          <Dialog open={createOpen} onOpenChange={setCreateOpen}>
           <DialogTrigger asChild>
             <Button size="sm" data-testid="button-new-mission">
               <Plus className="w-4 h-4 mr-1" /> Nova Missão
@@ -816,7 +1412,11 @@ function MissionsTab() {
             <MissionFormFields form={createForm} onSubmit={handleCreate} isPending={createMission.isPending} submitLabel="Criar Missão" />
           </DialogContent>
         </Dialog>
+        </div>
       </div>
+
+      <DuplicateDonationSettings />
+      <RepairPeerGiftsButton />
 
       {isLoading ? (
         <div className="space-y-2">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-16 rounded-lg" />)}</div>
@@ -863,23 +1463,31 @@ function MissionsTab() {
                   >
                     {updateMission.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> :
                       isOpen ? <PowerOff className="w-3 h-3" /> : <Power className="w-3 h-3" />}
-                    {isOpen ? "Encerrar Missão" : "Reabrir Missão"}
+                    {isOpen ? "Encerrar" : "Reabrir"}
                   </Button>
-                  <Button
-                    variant="ghost" size="icon"
-                    className="text-muted-foreground hover:text-foreground h-8 w-8"
-                    onClick={() => openEdit(m)}
-                    data-testid={`button-edit-mission-${m.id}`}
-                  >
-                    <Edit2 className="w-3.5 h-3.5" />
-                  </Button>
-                  <Button
-                    variant="ghost" size="icon"
-                    className="text-destructive hover:text-destructive h-8 w-8"
-                    onClick={() => handleDelete(m.id, m.title)}
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </Button>
+                  {m.missionType !== "album_percent" && (
+                    <Button
+                      variant="ghost" size="icon"
+                      className="text-muted-foreground hover:text-foreground h-8 w-8"
+                      onClick={() => openEdit(m)}
+                      data-testid={`button-edit-mission-${m.id}`}
+                    >
+                      <Edit2 className="w-3.5 h-3.5" />
+                    </Button>
+                  )}
+                  {m.missionType !== "album_percent" ? (
+                    <Button
+                      variant="ghost" size="icon"
+                      className="text-destructive hover:text-destructive h-8 w-8"
+                      onClick={() => handleDelete(m.id, m.title)}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
+                  ) : (
+                    <div className="h-8 w-8 flex items-center justify-center" title="Missão permanente — não pode ser excluída">
+                      <Lock className="w-3.5 h-3.5 text-muted-foreground/50" />
+                    </div>
+                  )}
                 </div>
               </motion.div>
             );
@@ -903,6 +1511,44 @@ function MissionsTab() {
   );
 }
 
+function RewardModeSelect({ control, name, collaborators }: {
+  control: any;
+  name: string;
+  collaborators: Collaborator[] | undefined;
+}) {
+  const mode = useWatch({ control, name });
+  const cardFieldName = name.replace("RewardMode", "SpecificCardId").replace("rewardMode", "specificCardId");
+  return (
+    <div className="space-y-2">
+      <FormField control={control} name={name} render={({ field }) => (
+        <FormItem>
+          <Select onValueChange={field.onChange} value={field.value ?? "random"}>
+            <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
+            <SelectContent>
+              <SelectItem value="random">🎲 Figurinha Aleatória</SelectItem>
+              <SelectItem value="specific">🎯 Figurinha Específica</SelectItem>
+              <SelectItem value="points_only">⭐ Somente Pontos (sem figurinha)</SelectItem>
+            </SelectContent>
+          </Select>
+        </FormItem>
+      )} />
+      {mode === "specific" && (
+        <FormField control={control} name={cardFieldName} render={({ field }) => (
+          <FormItem>
+            <FormControl>
+              <CollaboratorCombobox
+                value={field.value ?? ""}
+                onChange={field.onChange}
+                collaborators={collaborators}
+              />
+            </FormControl>
+          </FormItem>
+        )} />
+      )}
+    </div>
+  );
+}
+
 function MissionFormFields({
   form, onSubmit, isPending, submitLabel
 }: {
@@ -911,6 +1557,11 @@ function MissionFormFields({
   isPending: boolean;
   submitLabel: string;
 }) {
+  const { data: collaborators } = useListCollaborators();
+  const rewardMode = useWatch({ control: form.control, name: "rewardMode" });
+  const missionType = useWatch({ control: form.control, name: "missionType" });
+  const isPeerQuestion = missionType === "peer_question";
+
   return (
     <Form {...form}>
       <form onSubmit={onSubmit} className="space-y-3">
@@ -924,9 +1575,11 @@ function MissionFormFields({
           <FormField control={form.control} name="goal" render={({ field }) => (
             <FormItem><FormLabel>Meta *</FormLabel><FormControl><Input type="number" {...field} /></FormControl></FormItem>
           )} />
-          <FormField control={form.control} name="rewardPoints" render={({ field }) => (
-            <FormItem><FormLabel>⭐ Recompensa (pts) *</FormLabel><FormControl><Input type="number" {...field} /></FormControl></FormItem>
-          )} />
+          {!isPeerQuestion && (
+            <FormField control={form.control} name="rewardPoints" render={({ field }) => (
+              <FormItem><FormLabel>⭐ Recompensa (pts) *</FormLabel><FormControl><Input type="number" {...field} /></FormControl></FormItem>
+            )} />
+          )}
         </div>
         <FormField control={form.control} name="missionType" render={({ field }) => (
           <FormItem>
@@ -937,8 +1590,11 @@ function MissionFormFields({
                 <SelectItem value="unlock_cards">🎴 Desbloquear Figurinhas</SelectItem>
                 <SelectItem value="unlock_category">📂 Desbloquear Categoria</SelectItem>
                 <SelectItem value="unlock_rarity">💎 Desbloquear Raridade</SelectItem>
+                <SelectItem value="unlock_other_category">🔀 Desbloquear Categoria Diferente</SelectItem>
                 <SelectItem value="album_percent">📊 Progresso do Álbum (%)</SelectItem>
                 <SelectItem value="login">⚡ Login / Acesso</SelectItem>
+                <SelectItem value="peer_interaction">🤝 Interação com Outro Jogador</SelectItem>
+                <SelectItem value="peer_question">❓ Pergunta Configurável (Desafio)</SelectItem>
               </SelectContent>
             </Select>
             {field.value === "album_percent" && (
@@ -946,8 +1602,97 @@ function MissionFormFields({
                 💡 Use a <strong>Meta</strong> para definir o % do álbum necessário (ex: 50 = completar 50% do álbum). Esta missão é acompanhada automaticamente.
               </p>
             )}
+            {field.value === "unlock_other_category" && (
+              <p className="text-xs text-muted-foreground mt-1">
+                💡 O usuário precisa desbloquear figurinhas de uma categoria <strong>diferente</strong> da sua própria categoria (identificada pelo email). Use a <strong>Meta</strong> para definir quantas figurinhas.
+              </p>
+            )}
+            {field.value === "peer_interaction" && (
+              <p className="text-xs text-muted-foreground mt-1">
+                💡 O jogador presenteia um colega com uma figurinha. A figurinha vai para o álbum do colega selecionado; o remetente ganha os pontos configurados.
+              </p>
+            )}
+            {field.value === "peer_question" && (
+              <p className="text-xs text-muted-foreground mt-1">
+                💡 O jogador cria um desafio de pergunta para um colega. Configure recompensas separadas para quem enviou e quem respondeu corretamente.
+              </p>
+            )}
           </FormItem>
         )} />
+
+        {/* Recompensas para peer_question: dual config */}
+        {isPeerQuestion ? (
+          <div className="space-y-3 bg-muted/30 rounded-xl p-4 border border-border">
+            <p className="text-xs font-bold text-foreground">🎁 Recompensas do Desafio</p>
+
+            {/* Desafiante */}
+            <div className="space-y-2">
+              <p className="text-xs font-semibold text-primary flex items-center gap-1">👤 Quem enviou o desafio</p>
+              <div className="grid grid-cols-2 gap-2">
+                <FormField control={form.control} name="challengerRewardPoints" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-xs">⭐ Pontos</FormLabel>
+                    <FormControl><Input type="number" {...field} /></FormControl>
+                  </FormItem>
+                )} />
+                <div>
+                  <p className="text-xs font-medium mb-1.5">🎴 Figurinha</p>
+                  <RewardModeSelect control={form.control} name="challengerRewardMode" collaborators={collaborators} />
+                </div>
+              </div>
+            </div>
+
+            <div className="border-t border-border/50" />
+
+            {/* Desafiado */}
+            <div className="space-y-2">
+              <p className="text-xs font-semibold text-amber-600 flex items-center gap-1">👤 Quem respondeu o desafio</p>
+              <div className="grid grid-cols-2 gap-2">
+                <FormField control={form.control} name="challengedRewardPoints" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-xs">⭐ Pontos</FormLabel>
+                    <FormControl><Input type="number" {...field} /></FormControl>
+                  </FormItem>
+                )} />
+                <div>
+                  <p className="text-xs font-medium mb-1.5">🎴 Figurinha</p>
+                  <RewardModeSelect control={form.control} name="challengedRewardMode" collaborators={collaborators} />
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <>
+            <FormField control={form.control} name="rewardMode" render={({ field }) => (
+              <FormItem>
+                <FormLabel>🎁 Tipo de Recompensa</FormLabel>
+                <Select onValueChange={field.onChange} value={field.value ?? "random"}>
+                  <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
+                  <SelectContent>
+                    <SelectItem value="random">🎲 Figurinha Aleatória</SelectItem>
+                    <SelectItem value="specific">🎯 Figurinha Específica</SelectItem>
+                    <SelectItem value="points_only">⭐ Somente Pontos (sem figurinha)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </FormItem>
+            )} />
+            {rewardMode === "specific" && (
+              <FormField control={form.control} name="specificCardId" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Figurinha Específica *</FormLabel>
+                  <FormControl>
+                    <CollaboratorCombobox
+                      value={field.value ?? ""}
+                      onChange={field.onChange}
+                      collaborators={collaborators}
+                    />
+                  </FormControl>
+                </FormItem>
+              )} />
+            )}
+          </>
+        )}
+
         <FormField control={form.control} name="type" render={({ field }) => (
           <FormItem>
             <FormLabel>Modo de Validação</FormLabel>
@@ -1110,6 +1855,11 @@ function ValidacoesTab() {
                   <p className="text-xs text-muted-foreground">
                     Missão: <span className="font-semibold text-foreground">{item.missionTitle}</span>
                   </p>
+                  {item.targetUserName && (
+                    <p className="text-xs text-muted-foreground">
+                      🤝 Colega: <span className="font-semibold text-foreground">{item.targetUserName}</span>
+                    </p>
+                  )}
                   {item.submittedAt && (
                     <p className="text-[10px] text-muted-foreground mt-0.5 flex items-center gap-1">
                       <Clock className="w-3 h-3" />
@@ -1183,7 +1933,30 @@ function ValidacoesTab() {
 
 // ─── Users Tab ────────────────────────────────────────────────────────────────
 function UsersTab() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
   const { data: users, isLoading } = useListUsers();
+  const { data: collaborators } = useListCollaborators();
+  const deleteUser = useDeleteUser();
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
+
+  const linkedEmails = new Set(
+    (collaborators ?? [])
+      .map((c) => c.email?.trim().toLowerCase())
+      .filter((e): e is string => !!e)
+  );
+
+  const handleDelete = () => {
+    if (!deleteTarget) return;
+    deleteUser.mutate({ id: deleteTarget.id }, {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getListUsersQueryKey() });
+        toast({ title: "✅ Usuário excluído!" });
+        setDeleteTarget(null);
+      },
+      onError: () => toast({ title: "Erro ao excluir usuário", variant: "destructive" }),
+    });
+  };
 
   return (
     <div className="space-y-4">
@@ -1193,7 +1966,9 @@ function UsersTab() {
       ) : (
         <div className="bg-card border border-border rounded-xl overflow-hidden">
           <div className="divide-y divide-border">
-            {users?.map((u) => (
+            {users?.map((u) => {
+              const isLinked = !!u.email && linkedEmails.has(u.email.trim().toLowerCase());
+              return (
               <div key={u.id} className="flex items-center gap-3 px-4 py-3 hover:bg-muted/40" data-testid={`admin-user-${u.id}`}>
                 <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 overflow-hidden">
                   {u.photo ? <img src={u.photo} alt={u.name} className="w-full h-full object-cover" /> : <span className="text-base">👤</span>}
@@ -1202,6 +1977,12 @@ function UsersTab() {
                   <div className="flex items-center gap-1.5">
                     <p className="font-semibold text-sm truncate">{u.name}</p>
                     {u.isAdmin && <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4">admin</Badge>}
+                    <span
+                      title={isLinked ? "Figurinha vinculada" : "Sem figurinha vinculada"}
+                      className={`text-xs ${isLinked ? "text-green-600" : "text-muted-foreground/40"}`}
+                    >
+                      {isLinked ? "🎴" : "⭘"}
+                    </span>
                   </div>
                   <p className="text-xs text-muted-foreground truncate">{u.email}</p>
                 </div>
@@ -1209,8 +1990,18 @@ function UsersTab() {
                   <div className="text-sm font-bold">⭐ {u.points}</div>
                   <div className="text-xs text-muted-foreground">{Math.round(u.progress ?? 0)}% álbum</div>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => setDeleteTarget({ id: u.id, name: u.name })}
+                  className="flex-shrink-0 p-2 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                  title="Excluir usuário"
+                  data-testid={`button-delete-user-${u.id}`}
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
               </div>
-            ))}
+              );
+            })}
             {(!users || users.length === 0) && (
               <div className="text-center py-8 text-muted-foreground text-sm">
                 <div className="text-3xl mb-2">👥</div>
@@ -1220,6 +2011,24 @@ function UsersTab() {
           </div>
         </div>
       )}
+
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir usuário?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir <strong>{deleteTarget?.name}</strong>? Esta ação não pode ser desfeita e removerá o cadastro do usuário (as figurinhas e progresso associados permanecerão registrados separadamente).
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              {deleteUser.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
